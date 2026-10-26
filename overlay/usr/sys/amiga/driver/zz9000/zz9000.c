@@ -22,6 +22,23 @@
 #include "../../console/console.h"
 #include "zz9000.h"
 
+/*
+ * -DZZ9K_MODULE builds the loadable module form (amix-dlm C3-6 section 3): the same driver
+ * behind the module core's wrapper, its console through the core's cons_hook_set instead of
+ * the kernel's conputc, and only DDI v1 names imported.  Without it the source is the static
+ * driver, unchanged.
+ */
+#ifdef ZZ9K_MODULE
+#include "sys/conf.h"
+#include "sys/moddefs.h"
+#ifdef ZZ9K_FB_NC
+#error "ZZ9K_FB_NC: hat_cm_fb_add is not in DDI v1, build the module without it"
+#endif
+#ifndef ZZ9K_MONSW
+#error "the module depends on the monsw module (depend=monsw): build it with -DZZ9K_MONSW"
+#endif
+#endif
+
 #define ZZ9K_MAXBOARDS 1
 
 #define ZZ9K_REG(base, off) \
@@ -198,9 +215,16 @@ static void zz9k_console_fill_rect();
 static void zz9k_conputc();
 static unsigned short zz9k_console_color();
 
+#ifdef ZZ9K_MODULE
+extern struct screen *displayedscreen;
+extern int cons_hook_set();
+extern void cons_hook_clear();
+static int zz9k_cons_hook();
+#else
 extern void (*conputc)();
 
 static void (*zz9k_old_conputc)();
+#endif
 static int zz9k_console_on;
 static int zz9k_console_redirect;
 static int zz9k_console_disabled;
@@ -1564,9 +1588,17 @@ struct zz9k_board *bp;
     error = zz9k_console_start(bp);
     if (error)
         return error;
+#ifdef ZZ9K_MODULE
+    error = cons_hook_set(zz9k_cons_hook);
+    if (error) {
+        zz9k_console_on = 0;
+        return error;
+    }
+#else
     if (!zz9k_old_conputc)
         zz9k_old_conputc = conputc;
     conputc = zz9k_conputc;
+#endif
     zz9k_console_redirect = 1;
     zz9k_console_disabled = 0;
     return 0;
@@ -1581,9 +1613,17 @@ struct zz9k_board *bp;
     error = zz9k_console_start(bp);
     if (error)
         return error;
+#ifdef ZZ9K_MODULE
+    error = cons_hook_set(zz9k_cons_hook);
+    if (error) {
+        zz9k_console_on = 0;
+        return error;
+    }
+#else
     if (!zz9k_old_conputc)
         zz9k_old_conputc = conputc;
     conputc = zz9k_conputc;
+#endif
     zz9k_console_redirect = 1;
     zz9k_console_disabled = 0;
     return 0;
@@ -1596,8 +1636,13 @@ zz9k_console_disable()
 
     bp = zz9k_console_bp;
     zz9k_console_cursor(0);
+#ifdef ZZ9K_MODULE
+    if (zz9k_console_redirect)          /* the hook is ours only once a set succeeded */
+        cons_hook_clear();
+#else
     if (zz9k_old_conputc)
         conputc = zz9k_old_conputc;
+#endif
     zz9k_console_redirect = 0;
     zz9k_console_disabled = 1;
     zz9k_console_on = 0;
@@ -1606,6 +1651,7 @@ zz9k_console_disable()
     ZZ9K_MONSW_SET(0);
 }
 
+#ifndef ZZ9K_MODULE
 int
 zz9000consoleputc(c)
 unsigned char c;
@@ -1619,6 +1665,7 @@ unsigned char c;
     zz9k_conputc(c);
     return 1;
 }
+#endif
 
 int
 zz9000consolewrite(p, n)
@@ -1637,6 +1684,25 @@ unsigned n;
     }
     return 1;
 }
+
+#ifdef ZZ9K_MODULE
+/*
+ * The module's console hook (cons_hook_set): the core calls it with every write the stock
+ * scrcon_put would draw, from a virtual terminal or from printf.  Its first argument is the
+ * struct console being written, not a screen, so the c1.c hook's test (integration/
+ * c1-console.txt) reads the console's screen: only the console on display is taken.
+ */
+static int
+zz9k_cons_hook(cp, p, n)
+struct console *cp;
+unsigned char *p;
+unsigned n;
+{
+    if (cp->screen != displayedscreen)
+        return 0;
+    return zz9000consolewrite(p, n);
+}
+#endif
 
 static void
 zz9k_console_puts(s)
@@ -1686,11 +1752,13 @@ struct zz9k_board *bp;
     return 0;
 }
 
+#ifndef ZZ9K_MODULE
 void
 zz9000init()
 {
     (void)zz9k_probe(0);
 }
+#endif
 
 int
 zz9000open(devp, mode, type, cr)
@@ -2174,3 +2242,59 @@ int *rvalp;
 
     return 0;
 }
+
+#ifdef ZZ9K_MODULE
+/*
+ * The module form (amix-dlm C3-6 section 3).  /dev/zz9000's row on major 49; the core loads
+ * the module at the row's first open (class=demand) and fills the row's empty entries with
+ * nodev, as the static row has them.  One object serves both targets: the probe walks the
+ * ZZ9000 and the Z3660 rows of zz9k_boardtab[] at run time.  z3660rtg.keys holds the .moddata
+ * keys the ABI kit writes for it.
+ */
+static int zz9000_load();
+static int zz9000_unload();
+static void zz9000_halt();
+
+struct mod_drv_data zz9000_drvdata[] = {
+    { { 0 }, 0, 0,
+      { zz9000open, zz9000close, zz9000read, zz9000write, zz9000ioctl, zz9000mmap },
+      49, 1 }
+};
+
+MOD_DRV_WRAPPER(zz9000, zz9000_load, zz9000_unload, zz9000_halt,
+    "Z3660/ZZ9000 RTG framebuffer");
+
+/* No parameters; the console stays the ioctl's (ZZ9KIOC_CONSOLE), as in the static driver. */
+static int
+zz9000_load(params)
+char *params;
+{
+    return zz9k_probe(0) ? 0 : ENXIO;
+}
+
+/*
+ * Called only while /dev/zz9000 is closed.  Undoes the console hook (and with it the switch
+ * back to native, as ZZ9KIOC_CONSOLE DISABLE does) and the monsw registration, which keeps a
+ * pointer to this module's board name.
+ */
+static int
+zz9000_unload()
+{
+    struct zz9k_board *bp;
+
+    if (zz9k_console_redirect)
+        zz9k_console_disable();
+    bp = &zz9k_boards[0];
+    if (bp->base && bp->monsw_handle >= 0) {
+        monsw_unregister(bp->monsw_handle);
+        bp->monsw_handle = -1;
+    }
+    return 0;
+}
+
+/* Nothing to stop: the board neither interrupts nor writes memory. */
+static void
+zz9000_halt()
+{
+}
+#endif /* ZZ9K_MODULE */

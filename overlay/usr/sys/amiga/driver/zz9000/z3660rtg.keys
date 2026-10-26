@@ -1,0 +1,9 @@
+# The .moddata keys of the module form (amix-dlm C3-1 section 3, C3-6 section 3), one
+# key=value string per line as the section carries them.  The line's kabi, cc and cpu keys
+# come from the ABI kit.
+name=z3660rtg
+class=demand
+majors=c:49
+depend=monsw
+unload=allowed
+desc=Z3660/ZZ9000 RTG framebuffer
