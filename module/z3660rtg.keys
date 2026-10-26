@@ -1,6 +1,6 @@
 # The .moddata keys of the module form (amix-dlm C3-1 section 3, C3-6 section 3), one
 # key=value string per line as the section carries them.  The line's kabi and cc come from
-# the ABI kit, cpu from module/Makefile, which turns this file into the kit's Master.
+# the ABI kit, cpu too (the line's); module/Makefile turns this file into the kit's Master.
 name=z3660rtg
 class=demand
 majors=c:49
