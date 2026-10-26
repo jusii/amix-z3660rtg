@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- 2026-10-26 — The module's dependency gate runs against the real monsw module (amix-modules): MONSWINC is gone (sys/monsw.h
+  comes from the kit, dc54ff4), MONSWMOD defaults to ../../amix-modules/monsw/build/<line>/mod.d/monsw; module bytes unchanged
+  (4f8c3e33 / 21ccf3c5), modcheck ok on both lines; the check-only stand-in retired (e9d6a71).
+
 - 2026-10-26 — Module form of the driver (amix-dlm C3-6 §3) behind `ZZ9K_MODULE`: `make module` builds
   z3660rtg.o (zz9000m.o + sunfont.o), z3660rtg.keys (demand class, major 49, depend=monsw, unload=allowed);
   one module probes both boards at run time; the console hook tests cp->screen == displayedscreen; static
