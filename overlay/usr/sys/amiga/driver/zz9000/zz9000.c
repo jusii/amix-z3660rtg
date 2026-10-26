@@ -2264,11 +2264,100 @@ struct mod_drv_data zz9000_drvdata[] = {
 MOD_DRV_WRAPPER(zz9000, zz9000_load, zz9000_unload, zz9000_halt,
     "Z3660/ZZ9000 RTG framebuffer");
 
-/* No parameters; the console stays the ioctl's (ZZ9KIOC_CONSOLE), as in the static driver. */
+/*
+ * The module's parameters replace the static kernel's patchable knobs (z3660rtg.keys):
+ * blit (zz9k_blit_on) and maxarea (zz9k_blit_maxarea, pixels; 0 = no split).  Above the
+ * largest mode's area (2560x1440) a cap never splits, so that is maxarea's limit.
+ */
+#define ZZ9K_MAXAREA_LIMIT  3686400L
+
+/* The token p[0..n) is the word w. */
+static int
+zz9k_word(p, n, w)
+char *p;
+int n;
+char *w;
+{
+    return strlen(w) == n && strncmp(p, w, n) == 0;
+}
+
+/* p[0..n) as a decimal in 0..ZZ9K_MAXAREA_LIMIT, else -1. */
+static long
+zz9k_decimal(p, n)
+char *p;
+int n;
+{
+    long v;
+
+    if (n <= 0)
+        return -1;
+    for (v = 0; n--; ++p) {
+        if (*p < '0' || *p > '9')
+            return -1;
+        v = v * 10 + (*p - '0');
+        if (v > ZZ9K_MAXAREA_LIMIT)
+            return -1;
+    }
+    return v;
+}
+
+/*
+ * params: the manifest's "name=value ..." records, or 0 (C3-6 section 1.1), read here and
+ * not kept.  An absent name keeps the .moddata default, which is the knob's initialiser; a
+ * bad value is reported and the default kept.
+ */
+static void
+zz9k_params(params)
+char *params;
+{
+    char *p, *name, *val;
+    int nlen, vlen;
+    long v;
+
+    for (p = params; p && *p; ) {
+        while (*p == ' ')
+            ++p;
+        name = p;
+        while (*p && *p != ' ' && *p != '=')
+            ++p;
+        nlen = p - name;
+        val = p;
+        vlen = 0;
+        if (*p == '=') {
+            val = ++p;
+            while (*p && *p != ' ')
+                ++p;
+            vlen = p - val;
+        }
+        if (nlen == 0)
+            continue;
+        if (zz9k_word(name, nlen, "blit")) {
+            if (zz9k_word(val, vlen, "1") || zz9k_word(val, vlen, "yes") ||
+                zz9k_word(val, vlen, "true") || zz9k_word(val, vlen, "on"))
+                zz9k_blit_on = 1;
+            else if (zz9k_word(val, vlen, "0") || zz9k_word(val, vlen, "no") ||
+                zz9k_word(val, vlen, "false") || zz9k_word(val, vlen, "off"))
+                zz9k_blit_on = 0;
+            else
+                printf("zz9000: param blit: bad value, kept %d\n", zz9k_blit_on);
+        } else if (zz9k_word(name, nlen, "maxarea")) {
+            v = zz9k_decimal(val, vlen);
+            if (v < 0)
+                printf("zz9000: param maxarea: bad value, kept %d\n",
+                    (int)zz9k_blit_maxarea);
+            else
+                zz9k_blit_maxarea = v;
+        } else
+            printf("zz9000: unknown param ignored\n");
+    }
+}
+
+/* The console stays the ioctl's (ZZ9KIOC_CONSOLE), as in the static driver. */
 static int
 zz9000_load(params)
 char *params;
 {
+    zz9k_params(params);
     return zz9k_probe(0) ? 0 : ENXIO;
 }
 

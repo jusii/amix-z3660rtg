@@ -7,3 +7,5 @@ majors=c:49
 depend=monsw
 unload=allowed
 desc=Z3660/ZZ9000 RTG framebuffer
+param=blit:bool:1
+param=maxarea:int:0:0:3686400

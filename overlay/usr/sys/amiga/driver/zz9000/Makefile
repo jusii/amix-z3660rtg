@@ -54,16 +54,17 @@ zz9000.o : zz9000.c zz9000.h
 # The module form (amix-dlm C3-6 section 3), beside the static exp above: the same source
 # with -DZZ9K_MODULE, both board targets probed at run time, the monitor switch through the
 # monsw module and the Sun font linked in.  MCOPTS is the line's kernel dialect, MODINC the
-# include path of the ABI kit's headers and of sys/monsw.h; the kit wraps z3660rtg.o with
-# the keys in z3660rtg.keys.
+# include path of the ABI kit's headers and of sys/monsw.h, MFONT the kit's cross-linkable
+# sunfont.o; the kit wraps z3660rtg.o with the keys in z3660rtg.keys.
 MCOPTS	= $(ZCOPTS)
 MODINC	=
+MFONT	= $(FONT)
 MCFLAGS	= $(MCOPTS) -D_KERNEL -DSVR40 -DSVR4 -DZZ9K_MODULE -DZZ9K_TARGET_Z3660 -DZZ9K_MONSW $(ZZ9K_OPTS) $(MODINC) $(ZCINCS)
 
 module:	z3660rtg.o
 
-z3660rtg.o: zz9000m.o $(FONT)
-	$(LD) -r -o z3660rtg.o zz9000m.o $(FONT)
+z3660rtg.o: zz9000m.o $(MFONT)
+	$(LD) -r -o z3660rtg.o zz9000m.o $(MFONT)
 
 zz9000m.o : zz9000.c zz9000.h
 	$(CC) $(MCFLAGS) -c zz9000.c -o zz9000m.o
