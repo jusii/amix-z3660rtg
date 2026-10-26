@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- 2026-10-26 — Module form of the driver (amix-dlm C3-6 §3) behind `ZZ9K_MODULE`: `make module` builds
+  z3660rtg.o (zz9000m.o + sunfont.o), z3660rtg.keys (demand class, major 49, depend=monsw, unload=allowed);
+  one module probes both boards at run time; the console hook tests cp->screen == displayedscreen; static
+  build byte-identical in 8 configurations (c6fa2e6, branch dlm-module).
+
 ## 1.0 (amix-z3660rtg) - 2026-10-13
 
 Initial public release of the fork: the Z3660 accelerator's onboard RTG as a second target.
