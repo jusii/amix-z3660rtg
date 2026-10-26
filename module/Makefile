@@ -21,8 +21,7 @@ endif
 SRC      = ../overlay/usr/sys/amiga/driver/zz9000
 MONSWINC ?= ../../amix-040-060-port/src
 MODULE   = z3660rtg
-MODOUT   = build/$(LINE)
-OBJS     = $(MODOUT)/zz9000.o
+OBJS     = zz9000.o
 DEPS     = $(MONSWMOD)
 EXTRA    = $(KIT)/stock/usr/sys/amiga/console/sunfont.o
 LOCALIZE = builtinfont
@@ -30,9 +29,9 @@ CFLAGS   = -DZZ9K_MODULE -DZZ9K_TARGET_Z3660 -DZZ9K_MONSW -I$(MONSWINC) $(ZZ9K_O
 
 include $(KIT)/mk/module.mk
 
-$(MODOUT)/zz9000.o: $(SRC)/zz9000.c $(SRC)/zz9000.h
-	mkdir -p $(MODOUT)
-	$(KIT_CC) $(KIT_CFLAGS) $(CFLAGS) -c $(SRC)/zz9000.c -o $@
+# the fragment compiles $(MODOUT)/obj/zz9000.o from the source in the static driver's directory
+vpath %.c $(SRC)
+$(MODOUT)/obj/zz9000.o: $(SRC)/zz9000.h
 
 Master: z3660rtg.keys
 	{ echo '# generated from z3660rtg.keys by module/Makefile'; \
