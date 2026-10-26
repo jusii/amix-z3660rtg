@@ -18,8 +18,14 @@
 #include "sys/inline.h"
 #include "sys/errno.h"
 #include "sys/systm.h"
+#ifdef ZZ9K_MODULE
+/* the ABI kit's stock tree (module/Makefile), not a kernel tree beside this directory */
+#include "amiga/console/screen.h"
+#include "amiga/console/console.h"
+#else
 #include "../../console/screen.h"
 #include "../../console/console.h"
+#endif
 #include "zz9000.h"
 
 /*
@@ -31,6 +37,7 @@
 #ifdef ZZ9K_MODULE
 #include "sys/conf.h"
 #include "sys/moddefs.h"
+#include "sys/amixddi.h"
 #ifdef ZZ9K_FB_NC
 #error "ZZ9K_FB_NC: hat_cm_fb_add is not in DDI v1, build the module without it"
 #endif
@@ -216,9 +223,7 @@ static void zz9k_conputc();
 static unsigned short zz9k_console_color();
 
 #ifdef ZZ9K_MODULE
-extern struct screen *displayedscreen;
-extern int cons_hook_set();
-extern void cons_hook_clear();
+extern struct screen *displayedscreen;    /* DDI data; no stock header declares it */
 static int zz9k_cons_hook();
 #else
 extern void (*conputc)();
@@ -2248,8 +2253,8 @@ int *rvalp;
  * The module form (amix-dlm C3-6 section 3).  /dev/zz9000's row on major 49; the core loads
  * the module at the row's first open (class=demand) and fills the row's empty entries with
  * nodev, as the static row has them.  One object serves both targets: the probe walks the
- * ZZ9000 and the Z3660 rows of zz9k_boardtab[] at run time.  z3660rtg.keys holds the .moddata
- * keys the ABI kit writes for it.
+ * ZZ9000 and the Z3660 rows of zz9k_boardtab[] at run time.  module/ in this repository
+ * builds it with the ABI kit; module/z3660rtg.keys holds its .moddata keys.
  */
 static int zz9000_load();
 static int zz9000_unload();
@@ -2332,11 +2337,9 @@ char *params;
         if (nlen == 0)
             continue;
         if (zz9k_word(name, nlen, "blit")) {
-            if (zz9k_word(val, vlen, "1") || zz9k_word(val, vlen, "yes") ||
-                zz9k_word(val, vlen, "true") || zz9k_word(val, vlen, "on"))
+            if (zz9k_word(val, vlen, "1"))      /* bool: 0 or 1 (C3-1 section 3) */
                 zz9k_blit_on = 1;
-            else if (zz9k_word(val, vlen, "0") || zz9k_word(val, vlen, "no") ||
-                zz9k_word(val, vlen, "false") || zz9k_word(val, vlen, "off"))
+            else if (zz9k_word(val, vlen, "0"))
                 zz9k_blit_on = 0;
             else
                 printf("zz9000: param blit: bad value, kept %d\n", zz9k_blit_on);
