@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- 2026-10-27 — README: why the module builds without `-DZZ9K_NO_BUILTINFONT` — it links the kit's sunfont.o with `builtinfont`
+  localized and carries its own console font; the static 040/060 build has no font object and keeps the flag. Deliberate; the
+  port's build-pass audit item closes as documented. Bytes unchanged, VERSION 1.1.0-1 (eded552).
+
+
 - 2026-10-26 — The module's dependency gate runs against the real monsw module (amix-modules): MONSWINC is gone (sys/monsw.h
   comes from the kit, dc54ff4), MONSWMOD defaults to ../../amix-modules/monsw/build/<line>/mod.d/monsw; module bytes unchanged
   (4f8c3e33 / 21ccf3c5), modcheck ok on both lines; the check-only stand-in retired (e9d6a71).
