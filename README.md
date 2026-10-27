@@ -29,6 +29,15 @@ left unchanged.
   an AMIX kernel source tree. For the Z3660 build:
   `make ZZ9K_TARGET=-DZZ9K_TARGET_Z3660` (the Makefile header lists the bench and console
   options).
+- **Module.** `module/Makefile` builds the same source as a loadable module with an
+  [amix-dlm](https://github.com/jusii/amix-dlm) ABI kit (`make KIT=<kit>/k30` or `k46`); the
+  package version is `module/VERSION`. It is compiled with `-DZZ9K_MODULE -DZZ9K_TARGET_Z3660
+  -DZZ9K_MONSW`. The static 68040/68060 build also passes `-DZZ9K_NO_BUILTINFONT`, because those
+  kernels have no `builtinfont` symbol and the static link adds no font, so its console falls
+  back to the driver's 5x7 glyphs. The module leaves that flag out on purpose: it links the
+  kit's stock `sunfont.o` and makes `builtinfont` local (`EXTRA`, `LOCALIZE`), so it carries its
+  own console font and needs no kernel symbol on either line. With the flag, the module would
+  ignore the font it links and use the 5x7 glyphs.
 - **Kernel.** A Z3660 runs a 68040/68060 kernel from Antti Sokero's
   [amix-040-060-port](https://github.com/asokero/amix-040-060-port). The kernels here were
   assembled with [amix-kerntools](https://github.com/jusii/amix-kerntools), which builds this
