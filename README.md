@@ -30,7 +30,9 @@ left unchanged.
   `make ZZ9K_TARGET=-DZZ9K_TARGET_Z3660` (the Makefile header lists the bench and console
   options).
 - **Module.** `module/Makefile` builds the same source as a loadable module with an
-  [amix-dlm](https://github.com/jusii/amix-dlm) ABI kit (`make KIT=<kit>/k30` or `k46`); the
+  ABI kit from [amix](https://github.com/amigaux/amix)'s `kernel/dlm` (`make KIT=<kit>/k30` or
+  `k46`). The module depends on monsw, built in amix's `kernel/modules/monsw`; the default
+  paths (`MONSWMOD`, the `KIT` examples) assume amix checked out beside this repository. The
   package version is `module/VERSION`. It is compiled with `-DZZ9K_MODULE -DZZ9K_TARGET_Z3660
   -DZZ9K_MONSW`. The static 68040/68060 build also passes `-DZZ9K_NO_BUILTINFONT`, because those
   kernels have no `builtinfont` symbol and the static link adds no font, so its console falls
