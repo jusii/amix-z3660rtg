@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-29 — module/Makefile: MONSWMOD defaults into amix kernel/modules/monsw (0631925)
+
+KIT examples point at ../../amix/kernel/dlm/build/kit/<line>; the README says where the kit and monsw come from
+(github.com/amigaux/amix). Module bytes unchanged: k30 0db1156d, k46 0a36d5fc.
+
 ## Unreleased
 
 - 2026-10-27 — README: why the module builds without `-DZZ9K_NO_BUILTINFONT` — it links the kit's sunfont.o with `builtinfont`
