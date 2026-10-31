@@ -19,8 +19,6 @@ build/
 work/
 *.o
 *.log
-.claude/
-CLAUDE.md
 tmp/
 *.hdf
 *.adf
