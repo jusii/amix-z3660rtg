@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-31 — docs and comments state facts without internal ids or scratch paths (7023ea9, 763b9a7)
+
+Local tool files leave .gitignore. Module bytes unchanged (k30 0db1156d, k46 0a36d5fc); the X kit is unchanged
+(KIT.sha256 afd7068c).
+
 ## 2026-10-29 — module/Makefile: MONSWMOD defaults into amix kernel/modules/monsw (0631925)
 
 KIT examples point at ../../amix/kernel/dlm/build/kit/<line>; the README says where the kit and monsw come from
