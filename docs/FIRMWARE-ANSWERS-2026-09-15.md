@@ -1,4 +1,4 @@
-<!-- Verbatim copy of 2026-09-15-z3660-rtg/FIRMWARE-ANSWERS.md as delivered by the Z3660 firmware side on 2026-09-15 (firmware branch amix-main-2, source-only, no metal). Kept in-repo as evidence; the condensed merge is docs/FIRMWARE-RTG-INTERFACE.md. Out-of-repo path prefixes shortened to the evidence dir name (2026-10-02); text otherwise verbatim. -->
+<!-- Copy of the Z3660 firmware answer sheet FIRMWARE-ANSWERS.md of 2026-09-15 (firmware branch amix-main-2, source-only, no metal). Kept in-repo as evidence; the condensed merge is docs/FIRMWARE-RTG-INTERFACE.md. Out-of-repo paths shortened; text otherwise verbatim. -->
 
 # FIRMWARE-ANSWERS.md — Z3660 RTG firmware-interface answers
 
@@ -10,7 +10,7 @@ evidence is a live read are marked as such.
 Path convention (same as the sheet):
 `FW/` = `Z3660/z3660-firmware/Z-TURN/vitis_ide/`.
 ZZ9000 driver header cited as `DRV-zz9000.h` =
-`2026-09-14-isoriano-repos/zz9000-amix/overlay/usr/sys/amiga/driver/zz9000/zz9000.h`.
+`zz9000-amix/overlay/usr/sys/amiga/driver/zz9000/zz9000.h` (isoriano's upstream).
 Amiberry emulation cited as `amiberry/src/…`.
 
 ---

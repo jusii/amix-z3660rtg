@@ -1,16 +1,15 @@
 # NOTES.md — amix-z3660rtg running log
 
-> **Out-of-repo citations.** Evidence directories are cited by their date-stamped names. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
+> **Out-of-repo citations.** Run artefacts (reports, transcripts, frames) are cited by file name. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
 
 Newest entries at the bottom. Dates are absolute.
 
-## 2026-09-14 — fork + brief
+## 2026-09-14 — fork + starting facts
 
 - Repo forked from isoriano1968/zz9000-amix at 75e2449 (MIT).
   `upstream` is fetch-only (push URL disabled); no `origin`. Branch `main` (upstream's name —
   kept, per the project rule not to rename an existing default branch).
-- Brief: in `2026-09-15-z3660-rtg/`; gathered inputs:
-  `INPUTS-2026-09-16.md` (bench + firmware-source facts). `FIRMWARE-RTG-INTERFACE.md`
+- Gathered inputs: bench and firmware-source facts. `FIRMWARE-RTG-INTERFACE.md`
   (Z3660 firmware side) not yet merged as of this entry.
 - Binding project facts added: demo machine is a real
   68LC060 (no FPU) at 128 MB; RTG driver bench-first on emulation, metal only after
@@ -34,7 +33,7 @@ Newest entries at the bottom. Dates are absolute.
   * `zz9k_test` gates all tests on an autocon entry for 0x6d6e/3 (`found & 1`) and
     mmaps the WHOLE `info.board_size` — both identity-dependent.
   * Console renderer is hard-wired to 1920x800 / mode id 17 / RGB565.
-- Bench evidence consumed (`2026-09-15-zz9000-rig/`, kerntools 00c316c): upstream
+- Bench evidence consumed (2026-09-15 rig run, kerntools 00c316c): upstream
   75e2449 builds with the golden's GNU GCC 1.40.5 once the Makefile's gcc-2 `-fno-builtin`
   is stripped (kerntools `cflags_strip`); kernel 09684 boots in the piscsi rig; driver log
   `autocon match pc 0x6D6E0003 base 0x200000 size 0x400000 hw 0x0 fw 0x207`; zz9k_test
@@ -58,7 +57,7 @@ Newest entries at the bottom. Dates are absolute.
   * Grimoire: `autocon()` matches any (mfg,product) incl. Zorro III; the wall is the
     identity map (`zorro-autoconfig.md:52-72`); Amix 2.1's `bootinfo.autocon[]` can miss the
     Z3660 under both `autoconfig_rtg` settings; the X server's contract (`x11r63-zz9000.md`).
-  * X server source (`2026-09-14-isoriano-repos/x11r6.3-amix/…/zz9000hw.c:114-136`):
+  * X server source (`x11r6.3-amix/…/zz9000hw.c:114-136`):
     `mmap(0, info.board_size)` then `fbBase = base + fbi.fb_offset` — the driver alone defines
     the window shape. Verified by reading the file.
   * amiberry: ZZ9000 Z2 and Z3 models share one 16-bit register map (`docs/zz9000.md`);
@@ -100,16 +99,15 @@ Newest entries at the bottom. Dates are absolute.
   (b) the board-table refactor on branch `z3660-target`, default rows only, upstream
   behaviour preserved; (c) a build-and-selftest recipe for the kerntools ZZ9000 rig (bench
   step 0) — the kernel is built by amix-kerntools, never here.
-- 9d8c09f + 61c7e3d verified. Z3660 firmware side will answer the question sheet via
-  `2026-09-15-z3660-rtg/FIRMWARE-ANSWERS.md` (last in its queue) and hand it back
-  here to merge into `docs/FIRMWARE-RTG-INTERFACE.md`.
+- 9d8c09f + 61c7e3d verified. The Z3660 firmware side's answers to the question sheet are
+  to be merged into `docs/FIRMWARE-RTG-INTERFACE.md`.
 - TOOLCHAIN WARNING (2026-09-15): the installed cross wrapper at
   `~/opt/amix-cross` has a fixed-but-not-reinstalled defect — `-c` on a `.s`/`.S` with no
   explicit `-o` overwrites the SOURCE with the object. Until the wrapper is reinstalled: always pass
   an explicit `-o`, never feed `.i` inputs. (This repo does not build kernels; it matters
   for any host-side compile check of the driver.)
 - Design review before touching driver source (branch `z3660-target`).
-- kerntools contract (c011498, unreviewed): chardevs record repointed to
+- kerntools contract (c011498): chardevs record repointed to
   `overlay/usr/sys/amiga/driver/zz9000` (same bytes/pin); the target build is
   a `make=ZZ9K_TARGET=-DZZ9K_TARGET_Z3660` pass-through on the record → `cd zz9000; $(MAKE)
   ZZ9K_TARGET=…`. Our Makefile must honour `ZZ9K_TARGET` (default empty) in CFLAGS; bench aid
@@ -117,7 +115,7 @@ Newest entries at the bottom. Dates are absolute.
 
 ## 2026-09-15 — Z3660 firmware side's answers merged
 
-- `2026-09-15-z3660-rtg/FIRMWARE-ANSWERS.md` (source-only, branch amix-main-2) copied
+- The firmware answer sheet `FIRMWARE-ANSWERS.md` (source-only, branch amix-main-2) copied
   verbatim to `docs/FIRMWARE-ANSWERS-2026-09-15.md`; condensed answers merged into the slots of
   `docs/FIRMWARE-RTG-INTERFACE.md`. Q1, Q2(a,b,d), Q4, Q6 (firmware side), Q7, Q8, Q10, A3, A5
   CLOSED; Q3/A4 (no-board read: bus error vs open bus) UNSETTLED — bus/FPGA behaviour; A1/A2/A6
@@ -146,8 +144,8 @@ Newest entries at the bottom. Dates are absolute.
 - Host check (cross gcc 2.7.2.3, stock 2 KiB headers, upstream flags, `-Wall`): every row
   selection compiles with exactly upstream's four warnings; `nm` undefined-symbol set and the
   nine entry points identical to upstream 75e2449. The scratch layout: copies of the driver
-  dir beside symlinks to kerntools' `work/route-a-carrier-check/sysroot-usr/sys/{sys→include/sys,
-  amiga/inc,amiga/console}` (a symlinked driver dir breaks `../../console` includes — copy it).
+  dir beside symlinks into a stock `usr/sys` sysroot (`{sys→include/sys,
+  amiga/inc,amiga/console}`) (a symlinked driver dir breaks `../../console` includes — copy it).
   GNU GCC 1.40.5 on the golden remains the real gate (bench step 0).
 - Not done here, by design: any kernel build, any rig or metal driving.
 - Self-review of the diff found two defects, fixed in the next commit: with `-DZZ9K_BENCH_Z3`
@@ -169,15 +167,15 @@ Newest entries at the bottom. Dates are absolute.
 
 - kerntools ran docs/BENCH-STEP0.md: PASS on every criterion (kernel 20408; kerntools 7dd7e21
   makes the record's `git=` load-bearing — the subtree is exported at the named commit, so
-  this checkout no longer matters to their builds). Verified here against the evidence
-  (`2026-09-16-zz9000-rig-step0/`): T1 transcript diff = the allowed lines only; T4
+  this checkout no longer matters to their builds). Verified here against the run's
+  transcripts and frames: T1 transcript diff = the allowed lines only; T4
   values exact; T1/T2 screenshots byte-identical to the 2026-09-15 lane; -Wall identical (5,
   incl. the stock header's "/* within comment" — recipe corrected, c87420a). T3 prose fixed.
 - docs/BENCH-STEP1.md: the -DZZ9K_BENCH_Z3 row on amiberry's ZZ9000 Zorro III model under
   `z3mapping=uae` (bases from 0x10000000; the piscsi model moves too → its direct-map arm);
   driver bytes pinned at e05d4da; T1-T5 as step 0 plus the capped `board_size` 0x2e10000 and
   a T6 negative test (`z3mapping=real` → "outside the identity map" + ENXIO).
-- Bench step 1 PASS (kerntools, kernel 40227, `2026-09-16-zz9000-rig-step1/`): bench
+- Bench step 1 PASS (kerntools, kernel 40227): bench
   row at 0x10000000 size 0x2E10000; piscsi model at 0x18000000 booted via its direct-map arm;
   T2-T6 as specified (T6: "outside the identity map" + ENXIO). Finding, verified in
   `23-mmap-size-probe.txt`: `mmap(board_size)` fails ENOMEM under the login shell's default
@@ -199,9 +197,8 @@ Newest entries at the bottom. Dates are absolute.
   0xFFFFFFFF, my table corrected; (b) key gfxcard_type=Z3660_RTG + gfxcard_size=128 accepted;
   (c) 0x2000-0x1FFFFF backed+logged accepted; (d) id 7 = 1920x1080, ids 12-15 mapped accepted;
   (e) FILLRECT/COPYRECT only accepted. Exact rig config and driver bytes (0fe840d) pinned.
-- CHANGELOG.md was written on disk post-review; left untouched.
 - Bench step 2 PASS (kerntools, kernel 40217, bytes c5a5a46, amiberry stand-in 814d25c + pan
-  fix 71e7527; `2026-09-16-zz9000-rig-step2/`): boot line exact; 1920x1080 and
+  fix 71e7527): boot line exact; 1920x1080 and
   1280x800 bars with NO pitch workaround; 1920x800 EINVAL; console at 1920x1080; register
   page readable via read(2) (`0000 0103` at 0x1a0); access log: nothing below 0x100 or in the
   test area; zzpanfix inert. Verified here. Rig: chipset=aga + chipset_compatible=A3000.
@@ -232,16 +229,16 @@ Newest entries at the bottom. Dates are absolute.
 - Docs: DESIGN §11 (the 060 assessment), BENCH-STEP3 (robustness, running at kerntools on
   40217), BENCH-DEMO (fresh kernel with console=, pinned 6137966), METAL-PROBE-RUN (the run
   sheet), DEMO-RTG.md (the one-pager; metal section pending).
-- METAL PROBE PASS (Z3660 firmware side operating the A4000D, real LC060, r13, preset 7; evidence
-  `2026-09-16-z3660-rtg-metal/`): the mmap variant refused its own self-test (user
+- METAL PROBE PASS (Z3660 firmware side operating the A4000D, real LC060, r13, preset 7):
+  the mmap variant refused its own self-test (user
   mmap of /dev/mem on r13 does not land where asked — recorded in DESIGN §11.5); the -r
   variant (kernel-executed lseek+read/write) ran end to end at 1920x1080 and 1280x800:
   FW_VERSION 0x0103 at 0x100001a0, framebuffer self-test MATCH, mode-set acknowledged by the
   firmware serial (video_mode_init 5 / 17), f800f800 readback, bars/blue/bars on the HDMI.
   Verified here from transcripts, serial and frames (f01 = the bars at 1920x1080; 00-before =
   the firmware splash "Z3 RTG AUTOCONFIG Disabled"). A1/A6/Q6 closed on metal.
-- BENCH-DEMO PASS (kerntools, fresh kernel 56324, driver 389055d, console=zz9000consolewrite;
-  `2026-09-16-zz9000-rig-demo/`): D1 boot line exact + `T zz9000consolewrite`; D2a
+- BENCH-DEMO PASS (kerntools, fresh kernel 56324, driver 389055d, console=zz9000consolewrite):
+  D1 boot line exact + `T zz9000consolewrite`; D2a
   zz9k_cat/CONPUTS renders uname/date/ls on the RTG at 1920x1080 (verified frame); D2b the
   c1.c hook's first on-box run (redirect enables, renderer draws; typed VT needs a keyboard);
   D3 zz9k_demo bars + fill/copy, ulimit inside the script. STEP3 R5 closed on zz9k_rw: reads
@@ -258,8 +255,8 @@ Newest entries at the bottom. Dates are absolute.
   lineage or the candidate; /dev/zz9000 does not use mmmmap → tonight's evidence is NEUTRAL on
   the user-mapping row; zz9k_maptest stays row 1; /dev/mem mmap is not an oracle on r13
   kernels; leave r13's bytes alone for the demo. Recorded in DEMO-RTG.md and DESIGN §11.5.
-- 2026-09-17: the candidate 060 kernel (r13 + driver 389055d) PASSED kerntools' emulator smoke
-  (`2026-09-17-060-rtg-smoke/`): attach line first at io_init, multiuser, mkdev 49,
+- 2026-09-17: the candidate 060 kernel (r13 + driver 389055d) PASSED kerntools' emulator smoke:
+  attach line first at io_init, multiuser, mkdev 49,
   zz9k_maptest PASS (mapping coherent in emulation), rw bars, mmap bars (the explicit question:
   YES on this kernel), zz9k_cat text with the built-in glyphs, bounds symmetric (ENXIO at
   0x2E00000 both ways), counters +0x231c. Doc nit for the port: DELIVERY §5 says EINVAL past
@@ -269,14 +266,14 @@ Newest entries at the bottom. Dates are absolute.
 ## 2026-09-18 — the X lane (Xzz9000 on the RTG, cross route)
 
 - Groundwork (no design decision): the X11R6.3 tree prepared by the repo's own install.sh
-  (sha-verified tarballs + overlay cb61a21 = upstream head) at 2026-09-18-xzz9000-cross/;
+  (sha-verified tarballs + overlay cb61a21 = upstream head) in a work dir outside the repo;
   host imake bootstrapped with the Amix BOOTSTRAPCFLAGS; a host-cpp wrapper (-undef, the
   compiled-in -Dlinux dropped) makes imake generate the on-box Amix Makefile byte-for-byte in
   its key variables. The libsocket link gap (toolchain "known, open") retired for the server:
   `-usyslog -useteuid` + usr/ccs/lib/libc.a after the shared libs. The sysroot lacks
-  /usr/amiga (libscreen.so dangling, <amiga/screen.h> absent) — asked kerntools to pull it off
-  the rig. Recipe and design in docs/X-CROSS.md; the build waited for a design review.
-- Xzz9000 CROSS-BUILT (2026-09-18): 2026-09-18-xzz9000-cross/out/Xzz9000, 1 919 891 B,
+  /usr/amiga (libscreen.so dangling, <amiga/screen.h> absent) — pulled from the rig with
+  amix-kerntools. Recipe and design in docs/X-CROSS.md; the build waited for a design review.
+- Xzz9000 CROSS-BUILT (2026-09-18): `Xzz9000`, 1 919 891 B,
   sha 709b8a97f5c0c073…; gates pass (ELF m68k, libc.so.1 interpreter, NEEDED by name, DDX
   entry points, 124 user-mode scan060 hits = ISP-emulated). Walls met and passed: /usr/amiga
   (kerntools pull), mkg3states (host-built generator), /usr/ucblib libdbm.a (pull; dbminit
@@ -350,14 +347,14 @@ Newest entries at the bottom. Dates are absolute.
   emulation in the kerntools rig. X build inputs host.def + imakecpp.sh are tracked in x11/cross/
   (scrubbed copies).
 
-## 2026-09-27 — P-5 step 0: measurement kit (RT-01) and the first rig result
+## 2026-09-27 — X server work, step 0: measurement kit (RT-01) and the first rig result
 
-- P-5 started. RT-01: x11/bench/ (4aa1edd). It holds x11perf from the R6.3 tree, Antti's xbench
+- The X server correctness and speed work started. RT-01: x11/bench/ (4aa1edd). It holds x11perf from the R6.3 tree, Antti's xbench
   unchanged, and two discriminators (xorfill = S1, copyexpose = S2). Everything links a static
   R6.3 Xlib. build.sh reproduces the binaries byte for byte from a fresh copy of the Xzz9000
   work dir.
 - Rig smoke, LC060 + Z3660_RTG stand-in, a work copy of the X-ready desktop image, current
-  startx-rtg at 1024x768 with the olwm session. Evidence is in `2026-09-27-rt01-rig/`.
+  startx-rtg at 1024x768 with the olwm session.
   - x11perf `-rect10` gave 23100/s.
   - xbench noop gave 70588 ops/s.
   - The first xbench died with Illegal Instruction: `-m68040` emits 040-only FPU opcodes that the
@@ -372,10 +369,9 @@ Newest entries at the bottom. Dates are absolute.
 - On that rig session the root window showed white, not xinitrc-rtg's #4a5a6a. This is
   unexplained so far, so it is logged here but not yet a finding.
 
-## 2026-09-27 — P-5 S3: the framebuffer mapping's cache class (input from the va2000 analysis)
+## 2026-09-27 — suspect S3: the framebuffer mapping's cache class (input from the va2000 analysis)
 
-- Source: a project analysis of Antti's va2000-amix wip/zorro3
-  (`2026-09-26-collab-zorro3/va2000-wip-zorro3.md`). On the 040/060 line, a driver
+- Source: a project analysis of Antti's va2000-amix wip/zorro3. On the 040/060 line, a driver
   registers its framebuffer PFN range with `hat_cm_fb_add(lo, hi)` (the base kernel's
   `hat_cm_fb` table in `hat040.s`: 2 slots, immutable once installed). User mappings of device
   pages inside that range get NC (0x60, noncacheable, not serialised); all other device pages get
@@ -393,11 +389,11 @@ Newest entries at the bottom. Dates are absolute.
 - Not relevant to upstream's X server: this is kernel-side and port-specific, and the X
   server patches do not touch hardware access.
 
-## 2026-09-27 — P-5 fix 1 accepted on the rig: before/after (709b8a97 vs s5)
+## 2026-09-27 — X server fix 1 accepted on the rig: before/after (709b8a97 vs s5)
 
 The rig is the same as the smoke: LC060 + Z3660_RTG stand-in, a work copy of
 the X-ready desktop image, 1024x768, olwm session, and `xset s off` after every server start.
-Evidence is in `2026-09-27-p5-rig/`. Servers: 709b8a97 = the metal server; s5 =
+Servers: 709b8a97 = the metal server; s5 =
 Xzz9000 with p5-1..p5-4 (6c726318).
 
 | client | 709b8a97 | s5 |
@@ -460,7 +456,7 @@ Where the delta exceeds the spread:
 
 ## 2026-09-28 — rig: fix 2a and fix 2 measured, p5-7, RT-06
 
-Rig: same config as before; evidence in `2026-09-28-p5-fix2-rig/`. The x11perf files
+Rig: same config as before. The x11perf files
 are committed in x11/bench/perf/ (s6, s7, and the s8rt04 subset). Emulator numbers are for
 A/B only.
 
@@ -499,7 +495,7 @@ A/B only.
 
 ## RT-05 (NC framebuffer class): measured on metal, no gain, not shipped
 
-MG8, A4000T, 2026-09-28/29. Kernel A = KT-12f; kernel B = the same with `-DZZ9K_FB_NC` (B's boot
+MG8, A4000T, 2026-09-28/29. Kernel A = the driver-line rig kernel; kernel B = the same with `-DZZ9K_FB_NC` (B's boot
 line confirmed the registration). Both ran s8rt04. Every x11perf row was within ±1.7 %, and the
 store-bound set overlapped fully:
 
@@ -511,16 +507,16 @@ store-bound set overlapped fully:
 | copywinwin100 | 207 | 206 |
 | putimage100 | 68.9 | 69.5 |
 
-No read-back failure. The table is in `2026-09-28-mg/mg8/perf-A-vs-B.txt`.
+No read-back failure.
 
 Reading: the Zorro III write cycle bounds the store path, not the 060's serialisation. NC is
 declined. 26ff2d0 stays in the source behind `-DZZ9K_FB_NC`; with the flag off the objects are
 byte-identical, so no relink pass is needed. The remaining lever is fix 3: let the card's own
 engine do the fills and copies.
 
-## RT-07 (P-5 fix 3): fills and copies on the card's blitter
+## RT-07 (X server fix 3): fills and copies on the card's blitter
 
-Dispatched 2026-09-28. The firmware facts were checked against the Z3660 fork before any code:
+Started 2026-09-28. The firmware facts were checked against the Z3660 fork before any code:
 - FILLRECT (0x134) and COPYRECT (0x138) run synchronously, and the triggering write is
   acknowledged only when the operation is done.
 - `BLIT_DST`/`BLIT_SRC` are byte offsets from `FRAMEBUFFER_ADDRESS` (`RTG_BASE+0x200000`), which
@@ -550,7 +546,7 @@ Dispatched 2026-09-28. The firmware facts were checked against the Z3660 fork be
 - Kernel-patchable: `zz9k_blit_on` (1) and `zz9k_blit_maxarea` (0 = whole operation, else
   bands of at most that many pixels; a downward copy runs its bands bottom-up).
 - Imports unchanged: the seven plain imports, plus monsw's three with `-DZZ9K_MONSW`. The gate
-  emulation (`2026-09-28-rt07/gate.sh`) passed for all four objects: scan060 CLEAN,
+  emulation passed for all four objects: scan060 CLEAN,
   no COMMONs, no name collisions, 4 KiB page shifts.
 
 **DDX** (`x11/patches/rt07-card-blitter.patch`, s10rt04):
@@ -570,7 +566,7 @@ Dispatched 2026-09-28. The firmware facts were checked against the Z3660 fork be
 
 **RT-07 rig (2026-09-29).** Kernel KD060-Z-RT07-c0-u6 (1dd9a89a, zz9000 object 40eebe2d),
 checked on the vehicle. Root6 was a copy of the rt01 X disk, on the Z3660_RTG stand-in, at
-1024x768. Evidence is in `2026-09-29-rt07-rig/`.
+1024x768.
 - **s10rt04 without -blitmin (the control):** blit-edge 1050 cases, 0 FAIL. xorfill 5/5,
   copyexpose 2/2, xorcopy 3/3.
 - **s10rt04 -blitmin 1:** the log says "card blitter in use from 1 pixels".
@@ -585,8 +581,7 @@ checked on the vehicle. Root6 was a copy of the rt01 X disk, on the Z3660_RTG st
   Xvfb with a competing raiser, the old client fails 139/1050 and the new one PASSes 3/3.
 
 **RT-07b rig (2026-09-29): PASS.** Kernel KD060-Z-RT07b-c0-u6 (d891e468, zz9000 729cbdc,
-object 08500bbb), checked on the vehicle. The same root and stand-in as the first run. Evidence is
-in `2026-09-29-rt07b-rig/`.
+object 08500bbb), checked on the vehicle. The same root and stand-in as the first run.
 - **s10rt04 -blitmin 1:**
   - The log says "card blitter in use from 1 pixels".
   - blit-edge (9ec5ad87): 1050 cases, 0 FAIL.
@@ -598,11 +593,11 @@ in `2026-09-29-rt07b-rig/`.
   tile, not the blitter.
 - Phase A (the control) stands from the first run; the server is the same.
 - The rig proves correctness only. It says nothing about speed or the interrupt hold-off; those
-  are in the metal cell (`2026-09-28-rt07/METAL-CELL.md`, hashes refreshed for RT-07b).
+  are for metal (the metal plan's hashes refreshed for RT-07b).
 
 ## MG10 follow-ups and RT-08 (2026-09-29)
 
-Rig evidence is in `2026-09-29-rt07c-rig/` (quiet rig, KD060-Z-RT07b).
+Rig: quiet, KD060-Z-RT07b.
 
 **1f — the 7-pixel triangle (MG10).**
 - The mark is a CPU-path difference, but not a drawing change. rtg's screen init never called
@@ -679,7 +674,6 @@ Rig evidence is in `2026-09-29-rt07c-rig/` (quiet rig, KD060-Z-RT07b).
     has to be invalidated or dropped. The cache must also be invalidated at mode set.
   - The other levers are a larger `-blitmax`, if serial input at 38400 does not matter (MG11 retries
     4096 only when 38400 still loses bytes), or raising `-blitmin`. Neither needs a relink.
-- The metal cell is `2026-09-28-rt07/MG11-CELL.md`.
 
 ## RT-10: the console keyboard after X (2026-09-29)
 
@@ -699,7 +693,7 @@ server issues `SIOCBACK` (`HideScreen`) on it, in `rtgCloseScreen` and in `rtgAb
 FatalError path). `HideScreen` acts only while our screen is still the active one, and then
 selects the first usable other screen: the console.
 
-**Rig, one boot, quiet, KD060-Z-RT07b** (evidence `2026-09-29-rt10-rig/`).
+**Rig, one boot, quiet, KD060-Z-RT07b.**
 Console typing through amiberry's keyboard, checked by reading the file over telnet:
 
 | after | typing |
@@ -728,7 +722,7 @@ startx-rtg runs it from the exit trap only when the server died on its own: the 
 and this script did not stop it. Amix `sh` makes status-based detection impossible: `wait <pid>`
 returned 0 for a `kill -9`, for a `kill -15` and even for `exit 3` (measured on the rig).
 
-Rig, one boot, KD060-Z-RT07b, s14rt04 (`2026-09-29-rt11-rig/rt11-results.txt`):
+Rig, one boot, KD060-Z-RT07b, s14rt04:
 
 | case | typing |
 |---|---|
@@ -754,10 +748,10 @@ and a copy band is Y1/Y2/Y3/COPYRECT.
 
 **Gate emulation:** scan060 CLEAN and imports unchanged, with objects monsw 40d3b16c and plain
 2210dc32.
-- The port's PO-13d (472546b) matched.
-- KT-20d is KD060-Z-RT07c (b9cee294…6eda275, sum -r 08512).
+- The 68040/68060 port's gate (472546b) matched.
+- The rig kernel is KD060-Z-RT07c (b9cee294…6eda275, sum -r 08512).
 
-**Rig, quiet, s14rt04** (evidence `2026-09-29-rt09-rig/`). On RT07c:
+**Rig, quiet, s14rt04.** On RT07c:
 - Defaults: log "in use from 1024"; blit-edge 1050/0; xorfill 5/5, copyexpose 2/2, xorcopy 3/3.
 - `-blitmin 1 -blitmax 256`: blit-edge 1050/0.
 - Mode change to 1280x1024 (a new pitch, `-blitmin 1`): blit-edge 1050/0.
@@ -775,7 +769,7 @@ and a copy band is Y1/Y2/Y3/COPYRECT.
 | copywinwin500 | 428 | 414 |
 
 The emulator makes a register write almost free, so the rig cannot show the saving. MG12 on metal
-measures it (`2026-09-28-rt07/MG12-CELL.md`).
+measures it.
 
 ## Where the per-band time goes (analysis after MG12, 2026-09-29; no code)
 
@@ -832,7 +826,7 @@ is no cache flush, delay or mailbox on the op path: the only `Xil_DCacheFlush` c
   - (d) (a) as 2000 single-record ioctls: (d) − (a) is the ioctl cost;
   - (e) 1x1 copies, as a check that copies match fills.
   - It prints µs per record for each.
-- **M2 (firmware lane):** a test build with `PROFILE_ACK_REQUEST` enabled, run under M1(a). Slow
+- **M2 (firmware):** a test build with `PROFILE_ACK_REQUEST` enabled, run under M1(a). Slow
   acks point at H2. Also port the core-0 task stamps, which exist only in the emulator loop
   (C0_STAMP, main.c:1851–1893), to the real-CPU loop (main.c:1932–1965). They show which
   protothread holds core 0 after each op (H1).
@@ -840,7 +834,7 @@ is no cache flush, delay or mailbox on the op path: the only `Xil_DCacheFlush` c
 **Reading:**
 - If M1(a) is ~0.1 ms and M2 shows the time in another protothread, the fix is in the firmware:
   let `rtg_thread` serve consecutive bus accesses without yielding, or skip housekeeping while
-  a blitter burst is running. That is a Z3660-lane item for 1.1.
+  a blitter burst is running. That is a Z3660 firmware item for 1.1.
 - If M1(d) − (a) is large, the fix is on our side (fewer, larger batches).
 
 **Current decision:** the 8192 default stays. MG12: correct; 9600 at idle; 38400 gaps 258 against
@@ -862,7 +856,7 @@ Metal recipe (Z3660 firmware side, one boot, RT07c or RT07b, when the bench is i
 - run it twice;
 - keep both outputs.
 
-**M2 brief (Z3660 lane, after the release): firmware profiling of the op path.**
+**M2 plan (Z3660 firmware, after the release): firmware profiling of the op path.**
 1. **Ack profile.** Build with `#define PROFILE_ACK_REQUEST` (rtg.c:717).
    - It already times each bus access from `ack_request` to the REG1 release, and prints any over
      100 µs.
@@ -891,7 +885,7 @@ Metal recipe (Z3660 firmware side, one boot, RT07c or RT07b, when the bench is i
 
 ### M1 on metal, and reconciling it with MG11/MG12 (2026-09-29)
 
-**M1 results (first build 2bb6c0a4, A4000T, RT07c, two runs; `2026-09-28-mg/m1/`):**
+**M1 results (first build 2bb6c0a4, A4000T, RT07c, two runs):**
 - a: 76–77 µs per 1x1 fill;
 - b − a: 6.4–7.8;
 - c: +1 ns per pixel;
@@ -956,7 +950,7 @@ stayed up (150 s+). The user was left on a grey root, with the console owned by 
 - The Bourne shell has no `!`, so the tests use `kill -0` and `||`.
 - startx-rtg, the RT-10/RT-11 keyboard path and the SIGTERM path are unchanged.
 
-**Rig** (copy of Installng's cut-4 disk, RT07c; evidence `2026-09-30-rt12-rig/`).
+**Rig** (copy of the installer's cut-4 disk, RT07c).
 The clicks are real emulated Amiga mouse events through amiberry's IPC `SEND_MOUSE`, in steps of 3
 counts to stay under the X server's pointer acceleration (threshold 4, ×2).
 
@@ -972,7 +966,7 @@ rtg-kbdback (f636e9df) are unchanged.
 
 ### M1b on metal: the clean per-record figures (2026-09-30)
 
-Fixed build 398e4e29, A4000T, RT07c, no X, two runs (`2026-09-28-mg/m1b/`):
+Fixed build 398e4e29, A4000T, RT07c, no X, two runs:
 
 | quantity | run 1 | run 2 |
 |---|---|---|
@@ -1003,7 +997,7 @@ Fixed build 398e4e29, A4000T, RT07c, no X, two runs (`2026-09-28-mg/m1b/`):
     request dominates, or overlaps the card time. The rig cannot show it; a metal A/B with
     zz9k_blitbench-style records does.
 - **1.1 levers, in order:**
-  - the firmware's per-op path (M2 brief above; Z3660 lane);
+  - the firmware's per-op path (M2 plan above; Z3660 firmware);
   - fewer ioctls for single-copy requests (nothing cheap; it follows from the protocol);
   - the band size (serial stays the constraint).
 

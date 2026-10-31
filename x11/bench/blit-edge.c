@@ -1,5 +1,5 @@
 /*
-** blit-edge.c -- P-5 fix 3: do the card-blitter paths draw exactly what the
+** blit-edge.c -- X server fix 3: do the card-blitter paths draw exactly what the
 ** CPU paths draw?
 **
 ** A full-screen override-redirect window gets a position-coded pattern

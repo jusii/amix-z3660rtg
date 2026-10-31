@@ -2,7 +2,7 @@
 
 > **Status (2026-09-26).** Passed on the bench 2026-09-18 (`docs/X-INSTALL-RTG.md` §4) and since on metal (`docs/DEMO-RTG.md` row 7).
 >
-> **Out-of-repo citations.** Evidence directories are cited by their date-stamped names. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
+> **Out-of-repo citations.** Run artefacts (reports, transcripts, frames) are cited by file name. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
 
 **For the amix-kerntools build rig.** The cross-built X11R6.3 server (`docs/X-CROSS.md`) on the
 same rig that smoked the candidate kernel: LC060 bed, Z3660 RTG stand-in (amiberry 814d25c+),

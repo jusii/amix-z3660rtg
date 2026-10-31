@@ -2,7 +2,7 @@
 
 > **Status (2026-09-26).** Initial working version, **metal-proven end to end**: the candidate-2 kernel (driver 7e5c0e8) + the cross-built `Xzz9000` brought the OpenLook desktop up on the Z3660 HDMI from a real A4000 (metal session 2, rows 0–7, `docs/DEMO-RTG.md`; status of record 2026-09-19). Performance is poor; it is the next lane. Whether ZZ9000 and Z3660 stay one driver is still open.
 >
-> **Out-of-repo citations.** Evidence directories are cited by their date-stamped names. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
+> **Out-of-repo citations.** Run artefacts (reports, transcripts, frames) are cited by file name. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
 
 Mechanical recipe: what to copy, where, with which modes, and how the session is wired, so
 that a console login on the chipset screen can type `startx-rtg 1024x768` and get `olwm` +
@@ -15,11 +15,11 @@ binary is built), `docs/BENCH-X.md` (the bench proof, passed 2026-09-18, §4), `
 
 | File | Path on the image | Mode / owner | Source |
 |---|---|---|---|
-| `Xzz9000` | `/opt/amix/bin/Xzz9000` | 755 root:root | `2026-09-18-xzz9000-cross/out/Xzz9000` (1 919 891 B, sha256 `709b8a97f5c0c073…`) |
+| `Xzz9000` | `/opt/amix/bin/Xzz9000` | 755 root:root | the cross-built `Xzz9000` (`docs/X-CROSS.md`; 1 919 891 B, sha256 `709b8a97f5c0c073…`) |
 | `startx-rtg` | `/opt/amix/bin/startx-rtg` | 755 root:root | `amix-z3660rtg/x11/startx-rtg` |
 | `xinitrc-rtg` | `/.xinitrc-rtg` (root's home) | 755 root:root | `amix-z3660rtg/x11/xinitrc-rtg` — the RTG session, so the machine's `/.xinitrc` stays the demo's own (§2) |
 | `rtg-mode` | `/opt/amix/bin/rtg-mode` | 755 root:root | kerntools' card wrapper (validates a mode name, calls `zz9k_mode`) — **not needed by `startx-rtg`**, which passes `-mode` to the server; keep it for the picture demos |
-| the driver tools | `/opt/amix/bin/zz9k_*`, `colorls` | 755 root:root | `2026-09-17-z3660rtg-tools-6358112/`. **The wrapper scripts (`zz9k_demo`, `zz9k_console`) locate `zz9k_test` themselves** — `$ZZ9K_TEST`, then their own directory, then `/usr/amiga/bin`, then `/opt/amix/bin` — so either convention works and no profile variable is required. (Before 2026-09-18 they hardcoded upstream's `/usr/amiga/bin` and failed on the card: metal session 2, row 4.) |
+| the driver tools | `/opt/amix/bin/zz9k_*`, `colorls` | 755 root:root | the driver's `tools/` built at 6358112. **The wrapper scripts (`zz9k_demo`, `zz9k_console`) locate `zz9k_test` themselves** — `$ZZ9K_TEST`, then their own directory, then `/usr/amiga/bin`, then `/opt/amix/bin` — so either convention works and no profile variable is required. (Before 2026-09-18 they hardcoded upstream's `/usr/amiga/bin` and failed on the card: metal session 2, row 4.) |
 | `/dev/zz9000` | char 49,0 | 666 (or 600) root:root | `mkdev.sh` |
 
 **Nothing else is required.** The R6.3 server reads the box's existing X11R5 data:
@@ -83,7 +83,7 @@ wait $OLWM
 The first rule is not theoretical: on 2026-09-18 a busy session launched its clients alongside
 `olwm` and the xterms came up **undecorated for the life of the session** — no title bars, no
 resize corners — while `olwm` was demonstrably alive and its Workspace menu drew normally
-(`2026-09-18-r2-rtg-card/B3-decoration-final.png`). `olwm` decorates by reparenting, and a
+(frame `B3-decoration-final.png`). `olwm` decorates by reparenting, and a
 68060 is slow enough that a client mapping during the window manager's own startup loses that
 race as a matter of course. Nothing about the server or the driver is involved — the same
 server decorates correctly when the window manager goes first.
@@ -153,7 +153,7 @@ mode and is refused by the Z3660 row — a clean, logged failure.
 ## 4. Verification on the image (in this order)
 
 **Bench-proven 2026-09-18** on a work copy of the desktop image with the emulated Z3660
-RTG (kerntools, `2026-09-18-060-x-smoke/`): the server drives the RTG and runs the
+RTG (kerntools rig): the server drives the RTG and runs the
 full OpenLook desktop at 1024x768 — two `olwm`-decorated `xterm`s and a running `xclock`
 (`X3-desktop-olwm-1024x768-FINAL.png`). The three findings of that run (the `test -S` wait,
 the missing `Xol` font path, the VM limit) are fixed in `startx-rtg` and folded in above.

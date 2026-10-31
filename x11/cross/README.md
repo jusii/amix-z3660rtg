@@ -7,7 +7,7 @@ Recipe: `docs/X-CROSS.md` (copy `host.def` to `src/xc/config/cf/host.def`, run i
 - `imakecpp.sh` — the host preprocessor wrapper for imake.
 
 These are scrubbed copies. The copies of record are the files the metal-proven binary was built
-with, in the build dir `2026-09-18-xzz9000-cross/out/` (kept outside the repo):
+with, in the build dir's `out/` (kept outside the repo):
 
 | File | sha256 of the copy of record |
 |------|------------------------------|
@@ -27,7 +27,7 @@ with a default, overridable on the imake command line (`-DAmixSysroot=…`):
 | `AmixSysroot` | `AmixCrossPrefix/m68k-cbm-sysv4/sysroot` | `<work>/sysroot-mirror` |
 | `AmixXStubDir` | `$(TOP)/../../stub` (the work dir's `stub/`, from the `src/xc` layout) | `<work>/stub` |
 
-`<work>` = the absolute path of the build dir (`2026-09-18-xzz9000-cross`, outside the repo) on the build host.
+`<work>` = the absolute path of the build dir (outside the repo) on the build host.
 
 | Line | Copy of record | Scrubbed copy |
 |------|----------------|---------------|

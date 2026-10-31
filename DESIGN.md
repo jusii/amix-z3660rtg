@@ -1,6 +1,6 @@
 # DESIGN.md — amix-z3660rtg: the ZZ9000 Amix driver as a Z3660 RTG driver
 
-> **Out-of-repo citations.** Evidence directories are cited by their date-stamped names. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
+> **Out-of-repo citations.** Run artefacts (reports, transcripts, frames) are cited by file name. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
 
 **Status: AGREED 2026-09-15 (decisions in §9). Implemented on branch `z3660-target` (d5671a7 table/accessor/probe with the default rows; 9adfdcd the Z3660 and bench rows); bench step 0 pending (docs/BENCH-STEP0.md).** *(Status line of 2026-09-15.)*
 
@@ -16,13 +16,13 @@ The document answers: (1) what in the upstream driver is *identity/window* knowl
 *register protocol*; (2) what the Z3660 RTG actually looks like from the guest; (3) the single
 switch that separates the targets and exactly what it changes; (4) what only the Z3660
 firmware side's `FIRMWARE-RTG-INTERFACE.md` (or metal) can still close; (5) bench and compiler
-constraints; (6) the project decisions asked for.
+constraints; (6) the project decisions it needs.
 
 ---
 
-## 0. Summary — including one correction to the brief
+## 0. Summary — including one correction to the starting premise
 
-- **The brief's premise "register interface is ZZ9000-compatible" is true at the protocol
+- **The premise "register interface is ZZ9000-compatible" is true at the protocol
   level and false at the byte level.** The Z3660 firmware keeps the ZZ9000's register *names,
   order and semantics* (MODE = `id | color<<8 | scale<<12`, the blitter registers, PAN as a
   byte offset, the same colour modes) but exposes them as a **32-bit-word register file
@@ -33,7 +33,7 @@ constraints; (6) the project decisions asked for.
   `0x120`, the capture switch is a stub, the framebuffer starts at **`+0x200000`**, and mode
   id 17 is **1280x800**, not 1920x800 (`zz_video_modes.h:21`). Pointed at `0x10000000`,
   upstream's driver would read `0xffff/0xffff` and declare the board absent.
-- Everything else in the brief holds: with `autoconfig_rtg NO` (every Amix preset) the
+- The rest of the starting facts hold: with `autoconfig_rtg NO` (every Amix preset) the
   RTG/ethernet/piscsi combo window is hard-mapped at guest `0x10000000` with no AutoConfig
   entry (`FW/Z3660_emu/src/cpu_emulator.cpp:221-236`), inside the kernel's identity-mapped
   low 1 GB, so it is reached the way the sibling drivers reach it: AGA-gated fixed-base probe,
@@ -57,7 +57,7 @@ constraints; (6) the project decisions asked for.
 
 ## 1. What we start from (bench-proven)
 
-Evidence `2026-09-15-zz9000-rig/` (amix-kerntools 09d4b6f + 00c316c; `11-report.md`,
+Bench run of 2026-09-15 on the amix-kerntools ZZ9000 rig (09d4b6f + 00c316c; `11-report.md`,
 `31-report-resume.md`). ✅
 
 | Fact | Evidence |
@@ -70,7 +70,7 @@ Evidence `2026-09-15-zz9000-rig/` (amix-kerntools 09d4b6f + 00c316c; `11-report.
 | amiberry bug, not a driver bug: `zz_set_pan` takes the pitch from blitter X2 on every PAN_LO write (`src/zz9000.cpp:965-975,1364-1370`); the driver's SWITCH_RTG writes PAN=0 with X2==0 → black. No fix in the fork's log yet | `24-…pitch0.png`, `zzpanfix.c` |
 | Kernel wiring via kerntools `chardevs.conf` (sha-pinned subtree push, on-box `ed` of `init_tbl[]`/`cdevsw[49]`/driver Makefile); `c1.c` console hook OFF | `chardevs.work.conf:33` |
 
-The chardevs record points at the isoriano clone under `2026-09-14-isoriano-repos/`; the
+The chardevs record points at a clone of isoriano's repository; the
 bench of *this* fork needs it repointed to `amix-z3660rtg/overlay/…` with a new sha pin
 (cross-repo note, §6).
 
@@ -424,15 +424,15 @@ too); the DMA-op/GFXData path (AmigaOS-only convenience).
 ## 6. Bench plan
 
 All bench steps run on the kerntools piscsi rig via amix-kerntools, with the
-2026-09-15 evidence recipe (D245 clean-gate sum, `bootinfo.autocon[]` decode, driver boot
+2026-09-15 recipe (clean-build gate sum, `bootinfo.autocon[]` decode, driver boot
 lines, `zz9k_test` transcript, IPC `SCREENSHOT`, native console restored). Mechanics: `nohup`
 tests through amixrun; ~0.4x wall clock with the window hammered.
 
 | Step | Kernel / emulation | Proves | Pass |
 |---|---|---|---|
 | **0 regression** | golden 030 build of this repo, default rows — kerntools record repointed to `overlay/…` (c011498), **no `make=`**; `gfxcard_type=ZZ9000_Z2 gfxcard_size=4` | the table + accessor refactor changed nothing | boot lines as 09684 modulo wording; bars 1920x800; console test; `fb 0x10000+0x3d0000`; `MODE readback 0x0111` (ZZ9000 rows only — the Z3660's MODE is write-only, §3.3) |
-| **1 32-bit window rehearsal — PASS 2026-09-16** (kernel 40227; report `2026-09-16-zz9000-rig-step1/31-report.md`; one finding: the process VM rlimit, §8) | same kernel + a **bench-only** row accepting ZZ9000 product 4 inside the identity map (record `make=ZZ9K_TARGET=-DZZ9K_BENCH_Z3` as run; from now on `make=ZZ9K_BENCH=-DZZ9K_BENCH_Z3`); amiberry `gfxcard_type=ZZ9000_Z3 gfxcard_size=128 z3mapping=uae` → `0x10000000`, `er_type 0x83`, FB `+0x10000` (`amiberry src/gfxboard.cpp:444-455`, `src/expansion.cpp:296-308`) | kernel dereference of a window at `0x10000000` (console, FILL, rw); user `mmap` above 16 MB with 2 KiB `phystopfn`; `board_size` capped by `fb_max` | bars + console; a `devmaptest`-style aliasing check on the mapping |
-| **2 Z3660 hard-map rehearsal — PASS 2026-09-16** (kernel 40217, bytes c5a5a46, amiberry stand-in 814d25c; report `2026-09-16-zz9000-rig-step2/31-report.md`) | record `make=ZZ9K_TARGET=-DZZ9K_TARGET_Z3660,ZZ9K_BENCH=-DZZ9K_BENCH_Z3660` (the second define drops the combo REJECT row: amiberry's piscsi *model* AutoConfigures as `0x144B0001`, which on metal would mean `autoconfig_rtg YES` and rightly stop the probe before the fixed row); amiberry fork gains a **Z3660-RTG stand-in**: a thin bank at `0x10000000`, no AutoConfig (precedent `debugmem_bank`, `src/memory.cpp:1536,2755-2764`), that **translates the Z3660's 32-bit `0x100`-based registers onto the existing `zz9000.cpp` handlers**, FB at `+0x200000`, FW `0x0103`, no HW_VERSION, Z3660 mode ids — amiberry-agent work, cross-repo ask; rig must run `chipset=aga` for the gate | the fixed row end-to-end: gate, presence, no autocon entry, compacted device space, `zz9k_test` without its gate, X-style mmap | boot line `zz9000: Z3660 RTG at 0x10000000 …`; bars; console at the row's geometry; `GETAUTOCON` shows no RTG entry; mmap never reaches `+0x2000..` physical |
+| **1 32-bit window rehearsal — PASS 2026-09-16** (kernel 40227; rig report `31-report.md`; one finding: the process VM rlimit, §8) | same kernel + a **bench-only** row accepting ZZ9000 product 4 inside the identity map (record `make=ZZ9K_TARGET=-DZZ9K_BENCH_Z3` as run; from now on `make=ZZ9K_BENCH=-DZZ9K_BENCH_Z3`); amiberry `gfxcard_type=ZZ9000_Z3 gfxcard_size=128 z3mapping=uae` → `0x10000000`, `er_type 0x83`, FB `+0x10000` (`amiberry src/gfxboard.cpp:444-455`, `src/expansion.cpp:296-308`) | kernel dereference of a window at `0x10000000` (console, FILL, rw); user `mmap` above 16 MB with 2 KiB `phystopfn`; `board_size` capped by `fb_max` | bars + console; a `devmaptest`-style aliasing check on the mapping |
+| **2 Z3660 hard-map rehearsal — PASS 2026-09-16** (kernel 40217, bytes c5a5a46, amiberry stand-in 814d25c; rig report `31-report.md`) | record `make=ZZ9K_TARGET=-DZZ9K_TARGET_Z3660,ZZ9K_BENCH=-DZZ9K_BENCH_Z3660` (the second define drops the combo REJECT row: amiberry's piscsi *model* AutoConfigures as `0x144B0001`, which on metal would mean `autoconfig_rtg YES` and rightly stop the probe before the fixed row); amiberry fork gains a **Z3660-RTG stand-in**: a thin bank at `0x10000000`, no AutoConfig (precedent `debugmem_bank`, `src/memory.cpp:1536,2755-2764`), that **translates the Z3660's 32-bit `0x100`-based registers onto the existing `zz9000.cpp` handlers**, FB at `+0x200000`, FW `0x0103`, no HW_VERSION, Z3660 mode ids — amiberry-agent work, cross-repo ask; rig must run `chipset=aga` for the gate | the fixed row end-to-end: gate, presence, no autocon entry, compacted device space, `zz9k_test` without its gate, X-style mmap | boot line `zz9000: Z3660 RTG at 0x10000000 …`; bars; console at the row's geometry; `GETAUTOCON` shows no RTG entry; mmap never reaches `+0x2000..` physical |
 | **3 register fidelity** | as 2 after `FIRMWARE-RTG-INTERFACE.md` | §3.3/§3.4 verified against the doc; stand-in corrected where the doc differs | row values == doc |
 | **4 metal — PASS** (candidate-2 kernel, metal session 2 rows 0–7 incl. OpenLook on the Z3660 HDMI; A4000D; `docs/DEMO-RTG.md`). *Plan text below as of 2026-09-16.* | **Rule (2026-09-16): RTG goes onto the demo machine only after the demo cards are fully ready.** 68LC060 Model-B kernel (`amix-040-060-port`, relink script + Model-B sysroot/converter); the Z3660 firmware side drives the A4000D **after 2026-09-19**, never the demo media. **Display topology (2026-09-16):** the RGB capture sees only the Amiga RGB output; the Z3660's RTG HDMI goes through an HDMI switch flipped by hand — RTG is visible only with someone at the switch, and while RTG is on the capture the native console is not (and vice versa). The recipe therefore runs in **blocks**: console-side steps (boot lines, `mkdev`, tool build, `zz9k_test` up to "pattern active") on the RGB capture, a switch flip, RTG-side checks (bars, console test, X), a flip back — and **every RTG-side check has a serial/telnet-visible confirmation** (driver boot lines, the `zz9k_test` transcript, a `dd`/`od` readback of the framebuffer, `Xzz9000`'s log) so the run is decidable without the frame | the real firmware; 4 KiB `phystopfn`; DTT0 CI; the runtime VM limit (§8) | driver boot line and transcripts on the RGB capture; bars on the RTG HDMI when the switch is flipped to it, with the framebuffer readback as the frame-independent proof; `Xzz9000` up per its log |
 
@@ -541,7 +541,7 @@ in the port's style; it is not the kerntools 030 pipeline (whose on-box `ed` wir
 
 ### 11.2 The relink shape for a `cdevsw` + `mmap` char driver (A7) — measured in r13 by the 68040/68060 port
 
-Source: the 68040/68060 port's answer, `2026-09-15-rtg-relink-brief/ANSWERS.md` (every claim
+Source: the 68040/68060 port's measured answer (every claim
 with a `file:line`; the r13 artifact is the archived master `unix-060-fpe-r13-CARD1-ced0s1-metal-green-2026-08-28`).
 
 | Step | Fact (r13, measured) | For zz9000 |
@@ -611,7 +611,7 @@ the driver's own mapping. The mapping's cache class is **NCS** on r13 / candidat
 (no `hat_cm_fb` table in those binaries; unmanaged device pages take `Lcm_dev` = `oril #0x40`;
 `hat_cm_ram` is for managed pages only — 68040/68060 port, `HAT-CM-FB-R13.md`, 2026-09-27, correcting
 the earlier "deferred TODO" reading). NC is possible only on the driver-line base, by registering
-the window with `hat_cm_fb_add` at attach (P-5 fix 5). `/dev/mem` mmap is not an oracle on any r13-lineage kernel; the 68040/68060
+the window with `hat_cm_fb_add` at attach (X server fix 5). `/dev/mem` mmap is not an oracle on any r13-lineage kernel; the 68040/68060
 port recommends leaving r13's bytes alone for the demo. It **raises the bar for validating
 `zz9000mmap` on the metal**: the first thing
 a relinked kernel must show is a `devmaptest`-style aliasing check on `/dev/zz9000` (map the same

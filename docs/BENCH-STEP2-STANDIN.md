@@ -1,9 +1,9 @@
 # BENCH-STEP2-STANDIN.md — contract for the amiberry Z3660-RTG stand-in
 
-> **Out-of-repo citations.** Evidence directories are cited by their date-stamped names. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
+> **Out-of-repo citations.** Run artefacts (reports, transcripts, frames) are cited by file name. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
 
 **Result: PASS, 2026-09-16** (kernel 40217, driver bytes c5a5a46, amiberry stand-in 814d25c +
-pan fix 71e7527; evidence `2026-09-16-zz9000-rig-step2/`, report `31-report.md`;
+pan fix 71e7527; rig report `31-report.md`;
 verified here: transcript lines exact, access log free of anything below `0x100`
 or in `0x1000-0x1FFF`, register page readable through `read(2)` with `0103` at `0x1a2`). Two
 rig facts: `chipset=aga` runs with **`chipset_compatible=A3000`** (the A4000 profile breaks the

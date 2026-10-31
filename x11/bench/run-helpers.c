@@ -1,5 +1,5 @@
 /*
-** run-helpers.c -- host check of P-5 fix 2's fillRun/copyRun/copyRunBack (x11/patches/p5-6-stores32.patch),
+** run-helpers.c -- host check of X server fix 2's fillRun/copyRun/copyRunBack (x11/patches/p5-6-stores32.patch),
 ** extracted from the patched zz9000draw.c, against 16-bit reference loops over random lengths,
 ** alignments and (valid-direction) overlaps.  cc -O -w -fsanitize=address -o runs run-helpers.c && ./runs
 ** 2026-09-28: 200000 cases, 0 failures; with copyRunBack's tail broken, 12609.

@@ -2,13 +2,13 @@
 
 > **Status (2026-09-26).** Run and PASSED on 2026-09-16 (`docs/DEMO-RTG.md`, DESIGN §11.5); kept as the historical run sheet.
 >
-> **Out-of-repo citations.** Evidence directories are cited by their date-stamped names. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
+> **Out-of-repo citations.** Run artefacts (reports, transcripts, frames) are cited by file name. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
 
 Ground rules: the card in the machine may be used (it is rewritten
 the next day); no firmware flash, no card-file changes, no kernel; clean halt, preset 7 selected
 at the end. The Z3660 firmware side operates; the driver side directs and verifies.
 
-**Binary:** `2026-09-16-z3660-rtg-metal/zz9k_memprobe` (kept outside the repo)
+**Binary:** `zz9k_memprobe` (kept outside the repo)
 (sha256 `f92d016582d58a4e…`; cross-built with the wrapper, explicit `-o`; dynamically linked
 against `/usr/lib/libc.so.1`; 68020 code; no floating point). Source: `tools/zz9k_memprobe.c`
 (commit dc6565b), a copy beside the binary. Transfer to the box as root (e.g. `/tmp/zz9k_memprobe`,

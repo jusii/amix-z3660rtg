@@ -1,4 +1,4 @@
-RT-04 (P-8): the RTG monitor switch from the X server's device-independent
+RT-04: the RTG monitor switch from the X server's device-independent
 rtg/ layer (build-tree patch against isoriano1968/x11r6.3-amix cb61a21,
 applied after zz9000hw-modes.patch and p5-1 .. p5-6).
 

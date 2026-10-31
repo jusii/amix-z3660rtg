@@ -1,6 +1,6 @@
-# P-5 step 0 — the X measurement kit (RT-01)
+# The X measurement kit (RT-01)
 
-Four cross-built Amix binaries plus one script. They let the RTG campaign (P-5) start from
+Four cross-built Amix binaries plus one script. They let the X server work start from
 measurements, not impressions. Built by `x11/bench/build.sh` (the recipe), which reproduces them
 byte for byte. The binaries are not tracked: they live in `build/rt01/` (gitignored), and their
 hashes are below.
@@ -13,7 +13,7 @@ hashes are below.
 | `copyexpose` | S2 discriminator: CopyArea from a partly covered window | `bf6bd022b1f81a8bde532a79e7fcb814323c8c719a7b076340ef44f3d4ddbe8c` |
 | `xorcopy` | S4/S5 discriminator: XPutImage, pixmap→window and window→window XCopyArea, GXxor twice must vanish | `5af9a664ff364d1129504ad686ceedc535df299ba90e746f882d55a86b4f61e7` |
 | `xdrag` | XTEST title-bar drag (outline move without a mouse) | `2b9da5f175940970f007189b4e095d8ea276bcc1e5cae4033268d93d3ab9e542` |
-| `blit-edge` | P-5 fix 3: fills, clears, copies and window moves read back against a client-side reference (every alignment, all screen edges, overlaps in eight directions) | `9ec5ad878fd8bf91f0104f2e4c678239625f6d5d132160b30ddd714e262d92a0` |
+| `blit-edge` | fix 3 (the card blitter): fills, clears, copies and window moves read back against a client-side reference (every alignment, all screen edges, overlaps in eight directions) | `9ec5ad878fd8bf91f0104f2e4c678239625f6d5d132160b30ddd714e262d92a0` |
 | `zz9k_blitbench` | per-record blitter timing through /dev/zz9000, no X (M1 of NOTES "Where the per-band time goes") | `398e4e2978bd217249d8b5a49a3022ed84d9e84ff15f2c6c3dd04fba0993ee75` |
 | `x11perf-baseline.sh` | runner, test list verbatim from xrtg-amix | (tracked, this dir) |
 
@@ -91,7 +91,7 @@ windows.
     the root window, four rectangles 2 px (olwm's `OUTLINE_WIDTH`) or 1 px wide, GC function
     `GXinvert`, `subwindow_mode IncludeInferiors`, drawn twice. They are judged by comparing the
     root area before and after. This is the request behind the outline-drag trail seen on the
-    A4000T (709b8a97): expected FAIL there and PASS on the P-5 fix-1 server. Seven verdict/count
+    A4000T (709b8a97): expected FAIL there and PASS on the fix-1 server. Seven verdict/count
     lines in all.
 - **copyexpose.** Case `win->win` copies a green window whose right half is under a red one
   into a blue window. Case `scroll` scrolls the green window left by 50 inside itself. A correct
@@ -186,5 +186,5 @@ sh x11/bench/build.sh             # writes build/rt01/ + SHA256SUMS
 ```
 
 `XWORK` must be a copy: the script reconfigures its X libraries as static-only. The copy of record
-for the hashes above is `2026-09-27-rt01-xclients/` (kept outside the repo). A fresh copy of the Xzz9000 work
+for the hashes above is kept outside the repo. A fresh copy of the Xzz9000 work
 dir reproduced all four hashes exactly (2026-09-27).

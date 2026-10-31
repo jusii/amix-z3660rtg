@@ -1,4 +1,4 @@
-P-5 fix 2: 32-bit stores in the fill, copy and span loops (build-tree patch
+X server fix 2: 32-bit stores in the fill, copy and span loops (build-tree patch
 against isoriano1968/x11r6.3-amix cb61a21, applied after zz9000hw-modes.patch
 and p5-1 .. p5-5).
 

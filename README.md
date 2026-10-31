@@ -76,19 +76,18 @@ upstream author.
 
 The log, the patches and some source comments name work items:
 
-- **P-5** — the X server correctness and speed work. It covers suspects **S1–S5**, server bugs
-  checked by the discriminator clients in `x11/bench/`, and fixes 1–3. Fix 3 is the card
-  blitter.
-- **P-7, P-8** — the RTG monitor switch: P-7 is the interim userland pair, P-8 the server hook.
-- **RT-01 … RT-12** — the RTG work items (`CHANGELOG.md`, `NOTES.md`).
+- **S1–S5, fixes 1–3** — the X server correctness and speed work. Suspects S1–S5 are server
+  bugs checked by the discriminator clients in `x11/bench/`. Fix 1 is the raster-op and exposure
+  correctness (`p5-1` … `p5-4`), fix 2 the 32-bit stores (`p5-5` … `p5-7`), fix 3 the card
+  blitter (`rt07*`, `rt08`).
+- **RT-01 … RT-12** — the RTG work items (`CHANGELOG.md`, `NOTES.md`). The patch names
+  (`rt04-*` …) and the server build names (`s8rt04` … `s14rt04`) carry them.
 - **M1, M1b, M2** — blitter cost measurements: `zz9k_blitbench` on the card, then the
   firmware-side profile.
-- **MGn** — numbered metal test runs on a real A4000.
-- **K1, KT-nn, PO-nn** — items of the install-media builder, amix-kerntools and the 68040/68060
-  port.
+- **MGn** — numbered metal test runs on a real A4000, recorded in `NOTES.md`.
 - **ISSUE-nn** — entries in the 68040/68060 port's `KNOWN-ISSUES.md` (Antti Sokero; public).
 
-**Out-of-repo citations.** Some records in `NOTES.md` and `docs/` cite evidence directories,
+**Out-of-repo citations.** Some records in `NOTES.md` and `docs/` cite run artefacts,
 sibling repositories or archived images by name. They are not part of this repo and are not
 needed to build or use the driver.
 

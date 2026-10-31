@@ -1,4 +1,4 @@
-RT-07 (P-5 fix 3): fills and copies on the card's own blitter
+RT-07 (X server fix 3): fills and copies on the card's own blitter
 (build-tree patch against isoriano1968/x11r6.3-amix cb61a21, applied after
 zz9000hw-modes.patch, p5-1 .. p5-7 and rt04-monsw-hook.patch).
 

@@ -8,8 +8,8 @@ KIT examples point at ../../amix/kernel/dlm/build/kit/<line>; the README says wh
 ## Unreleased
 
 - 2026-10-27 — README: why the module builds without `-DZZ9K_NO_BUILTINFONT` — it links the kit's sunfont.o with `builtinfont`
-  localized and carries its own console font; the static 040/060 build has no font object and keeps the flag. Deliberate; the
-  port's build-pass audit item closes as documented. Bytes unchanged, VERSION 1.1.0-1 (eded552).
+  localized and carries its own console font; the static 040/060 build has no font object and keeps the flag. Deliberate.
+  Bytes unchanged, VERSION 1.1.0-1 (eded552).
 
 
 - 2026-10-26 — The module's dependency gate runs against the real monsw module (amix-modules): MONSWINC is gone (sys/monsw.h
@@ -52,7 +52,7 @@ are unchanged.
 ### X (x11/)
 - Build-tree patches for isoriano's X11R6.3 `Xzz9000`:
   - the two Z3660 modes;
-  - the P-5 correctness fixes: raster ops in PolyFillRect, SetSpans and CopyArea, and
+  - the correctness fixes: raster ops in PolyFillRect, SetSpans and CopyArea, and
     window-to-window CopyArea exposures;
   - 32-bit stores;
   - the monitor-switch hook;

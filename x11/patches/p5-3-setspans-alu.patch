@@ -1,4 +1,4 @@
-P-5 fix 1, S4: SetSpans honours the GC's raster op (build-tree patch against
+X server fix 1, S4: SetSpans honours the GC's raster op (build-tree patch against
 isoriano1968/x11r6.3-amix cb61a21, applied after zz9000hw-modes.patch,
 p5-1-solidrect-alu.patch and p5-2-copyarea-expose.patch).
 

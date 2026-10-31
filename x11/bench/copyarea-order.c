@@ -1,5 +1,5 @@
 /*
-** copyarea-order.c -- host check of the P-5 S2 box ordering in ZZ9000CopyArea
+** copyarea-order.c -- host check of the S2 box ordering in ZZ9000CopyArea
 ** (x11/patches/p5-2-copyarea-expose.patch): overlapping self-copies in all eight
 ** directions over banded regions with holes, against a copy through a temporary
 ** buffer.  walk() and copyVRAMBox() mirror the patched DDX code.

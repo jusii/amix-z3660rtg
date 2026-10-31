@@ -1,6 +1,6 @@
 # BENCH-DEMO.md — the no-X demonstration picture, rehearsed on the stand-in
 
-> **Out-of-repo citations.** Evidence directories are cited by their date-stamped names. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
+> **Out-of-repo citations.** Run artefacts (reports, transcripts, frames) are cited by file name. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
 
 **For the amix-kerntools build rig.** This rehearsal produces the frames that decide whether
 RTG is shown in a demo. It is the **first on-box run of the `c1.c` console hook**

@@ -1,4 +1,4 @@
-P-5 fix 1, S5: a window-to-window CopyArea with any raster op but GXcopy
+X server fix 1, S5: a window-to-window CopyArea with any raster op but GXcopy
 goes to miCopyArea (build-tree patch against isoriano1968/x11r6.3-amix
 cb61a21, applied after zz9000hw-modes.patch and p5-1 .. p5-3).
 

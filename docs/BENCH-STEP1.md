@@ -1,8 +1,8 @@
 # BENCH-STEP1.md — the 32-bit-window rehearsal on amiberry's ZZ9000 Zorro III model
 
-> **Out-of-repo citations.** Evidence directories are cited by their date-stamped names. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
+> **Out-of-repo citations.** Run artefacts (reports, transcripts, frames) are cited by file name. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
 
-**Result: PASS, 2026-09-16** (kernel 40227; evidence `2026-09-16-zz9000-rig-step1/`,
+**Result: PASS, 2026-09-16** (kernel 40227; rig
 report `31-report.md`; verified here). **One finding, not in the driver:** T1's
 `mmap(board_size)` failed with ENOMEM under the login shell's default per-process VM limit
 (`ulimit -a` memory(kbytes) 16384 soft, hard unlimited); the size probe `23-mmap-size-probe.txt`
@@ -38,7 +38,7 @@ replaces upstream's product-4 rejection with an accept-if-inside-the-identity-ma
 | Source | `amix-z3660rtg`, branch `z3660-target`, driver bytes as of **e05d4da** (the subtree is unchanged by the later docs commits; the harness exports the named revision) |
 | chardevs record | a **second record or a `CHARDEVS_CONF=` work conf** (one record per build): same subtree path, `git=e05d4da`, new `sha256=` pin, `cflags_strip=-fno-builtin` kept, console OFF, and **`make=ZZ9K_TARGET=-DZZ9K_BENCH_Z3`** (as run; from the Makefile with `ZZ9K_BENCH` onward the bench aid goes in `make=ZZ9K_BENCH=-DZZ9K_BENCH_Z3`) |
 | Driver compile line on the box | must show `-D_KERNEL -DSVR40 -DSVR4 -DZZ9K_BENCH_Z3 -I../../.. -I../../inc` and no `-fno-builtin` |
-| Kernel | golden 030 build, D245 clean-gate STABLE, as step 0 |
+| Kernel | golden 030 build, clean-build gate STABLE, as step 0 |
 | Rig config | `configs/amix-z3660-piscsi-rig-zz9000.uae` with three changes: `gfxcard_type=ZZ9000_Z3`, `gfxcard_size=128`, **`z3mapping=uae`**. Everything else unchanged (`chipset=ecs` is fine: no fixed row is compiled in) |
 
 **Side effect to expect and record:** `z3mapping=uae` moves *every* Zorro III board below

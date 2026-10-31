@@ -1,6 +1,6 @@
 /*
 ** xdrag.c -- drag a window by its title bar through the XTEST extension, so an
-** outline move can be reproduced without a hand on the mouse (P-5 step 0a on
+** outline move can be reproduced without a hand on the mouse (X measurement step 0a on
 ** a machine whose KVM has no mouse).
 **
 ** Finds the top-level window whose WM_NAME is <name>, walks up to the window

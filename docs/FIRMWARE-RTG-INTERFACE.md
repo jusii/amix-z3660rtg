@@ -1,15 +1,14 @@
 # FIRMWARE-RTG-INTERFACE.md — questions for the Z3660 firmware side
 
-> **Out-of-repo citations.** Evidence directories are cited by their date-stamped names. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
+> **Out-of-repo citations.** Run artefacts (reports, transcripts, frames) are cited by file name. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
 
 **Purpose.** The amix-z3660rtg driver's Z3660 row (DESIGN.md §4.2) is built from a preliminary
 read of the firmware and AmigaOS-driver sources (DESIGN.md §3). This sheet lists what still needs
 the Z3660 firmware side's word — each question says *why it matters*, *where the answer lives*
 (a firmware source line, or one read on the metal), and *what we currently assume*. Please
 answer in place under **Answer:** (with a citation or the metal observation), leave the
-question text alone, and mark anything you cannot settle as `UNSETTLED` with the reason. Your
-own `2026-09-15-z3660-rtg/FIRMWARE-RTG-INTERFACE.md`, if you keep writing it, is the
-long form; this file is the merge target the driver row is generated from.
+question text alone, and mark anything you cannot settle as `UNSETTLED` with the reason. A separate
+long-form answer document may exist beside it; this file is the merge target the driver row is generated from.
 
 **Merged 2026-09-15** from the Z3660 firmware side's answer sheet (verbatim copy:
 `docs/FIRMWARE-ANSWERS-2026-09-15.md`; firmware branch `amix-main-2`, source-only). Status tags:

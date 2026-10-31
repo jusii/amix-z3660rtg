@@ -1,4 +1,4 @@
-P-5 fix 2, follow-up: short runs keep the 16-bit loop (build-tree patch
+X server fix 2, follow-up: short runs keep the 16-bit loop (build-tree patch
 against isoriano1968/x11r6.3-amix cb61a21, applied after p5-6-stores32.patch).
 
 p5-6's alignment work costs more than it saves on runs of a few pixels:

@@ -1,5 +1,5 @@
 /*
-** xorcopy.c -- P-5 S4/S5: do image writes and copies honour GXxor?
+** xorcopy.c -- suspects S4/S5: do image writes and copies honour GXxor?
 **
 ** Three cases, each twice with GXxor into its own column of a black window,
 ** which must leave the column black; then the pixels are read back:

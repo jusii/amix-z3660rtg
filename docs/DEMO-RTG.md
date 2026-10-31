@@ -2,13 +2,12 @@
 
 > **Status (2026-09-26).** Initial working version, **metal-proven end to end**: the candidate-2 kernel (driver 7e5c0e8) + the cross-built `Xzz9000` brought the OpenLook desktop up on the Z3660 HDMI from a real A4000 (metal session 2, rows 0–7, below; status of record 2026-09-19). Performance is poor; it is the next lane. Whether ZZ9000 and Z3660 stay one driver is still open. This page is the 2026-09-16..18 record; its "no X" and "recommendation" sections are dated and were overtaken by session 2.
 >
-> **Out-of-repo citations.** Evidence directories are cited by their date-stamped names. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
+> **Out-of-repo citations.** Run artefacts (reports, transcripts, frames) are cited by file name. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
 
 One page, 2026-09-16 night → morning. Everything here is bench- or metal-proven
 unless marked *estimate* or *not built*. Bench (amiberry Z3660-RTG stand-in, kerntools rig)
-and metal (A4000D, real LC060, r13) both PASSED tonight; the frames are in the evidence dirs. Sources: DESIGN.md §6/§11, the bench evidence dirs
-`2026-09-16-zz9000-rig-step{0,1,2,3}/`, the metal probe `2026-09-16-z3660-rtg-metal/`,
-the 68040/68060 port's `2026-09-15-rtg-relink-brief/ANSWERS.md`.
+and metal (A4000D, real LC060, r13) both PASSED tonight. Sources: DESIGN.md §6/§11, bench steps 0–3 (`docs/BENCH-STEP*.md`), the
+metal probe below, and the 68040/68060 port's relink answer (DESIGN.md §11.2).
 
 ## What it would show (no X — `Xzz9000` is blocked on the native compiler) *(as of 2026-09-16; X since cross-built and metal-proven, row 7)*
 
@@ -39,7 +38,7 @@ RTG-side step has a transcript-visible confirmation, so a run is decidable witho
 |---|---|
 | The driver (`amix-z3660rtg`, branch `z3660-target`, driver bytes 389055d, tools 5fa58ba) — one source, ZZ9000 rows byte-for-byte upstream in behaviour, the Z3660 row behind `-DZZ9K_TARGET_Z3660` | **bench-proven end to end** on amiberry's Z3660-RTG stand-in: steps 0–2 PASS, step 3 robustness PASS (mode switching incl. 32-bit, console cycles, register bounds and HI/LO composition, VM-limit path, repeated probe, read/write bounds symmetric and exact), DEMO lane PASS (boot line `zz9000: Z3660 RTG at 0x10000000 size 0x2E00000 hw 0xFFFF fw 0x103`); compiles clean the port's way (Model-B sysroot, `-m68040`, `scan060` 0 hits, page geometry OK) |
 | The real-060 path without any kernel: hard map at `0x10000000`, 32-bit register file, framebuffer at `+0x200000`, HDMI | **metal-proven tonight** (`tools/zz9k_memprobe -r`, `/dev/mem`, root): bars at 1920x1080 and 1280x800 on the Z3660 HDMI, firmware serial acknowledging both modes — see below |
-| **A NEW 060 kernel** = the proven r13 + this driver, by a new relink pass in `amix-040-060-port` (`relink-040-zz9000.sh` between f6 and fpe from the pinned f7vs; cdevsw row 49 at `0xa7c8`; a second `parinit` wrapper for `zz9000init`; `-DZZ9K_NO_BUILTINFONT`) | **BUILT tonight, local only:** `unix-060-fpe-r13-zz9000-CARD1-ced0s1` (1 950 897 B, `sum -r` 11366, build id 68040-260915-55), driver `zz9000.c/.h` from 5fa58ba, host gates passed, scan060 0 hits with an independent decode of all 27 ext words, r13 embedded byte-for-byte (relocations differ in exactly the six row-49 records); files, logs and the **metal checklist** in `2026-09-15-rtg-relink-brief/DELIVERY.md`. **Candidate 2** (`68060-260916-51`, driver 7e5c0e8) is the current artifact after the metal attach fix; candidate 1's **emulator smoke PASSED 2026-09-17** (kerntools, LC060 bed + Z3660 RTG stand-in, `2026-09-17-060-rtg-smoke/21-candidate-result.md`): the attach line is the first `io_init` message, multiuser, `mkdev` 49, `zz9k_maptest` PASS, bars through `write(2)` and through the mapping, `zz9k_cat` text, bounds symmetric (ENXIO at `board_size` both ways), counters at +0x231c as tabled, no panic. **Metal validation is a separate session** — r13 itself never ran the port's §5/§7/§8 suites on the LC060; counter addresses move by +0x231c versus r13 |
+| **A NEW 060 kernel** = the proven r13 + this driver, by a new relink pass in `amix-040-060-port` (`relink-040-zz9000.sh` between f6 and fpe from the pinned f7vs; cdevsw row 49 at `0xa7c8`; a second `parinit` wrapper for `zz9000init`; `-DZZ9K_NO_BUILTINFONT`) | **BUILT tonight, local only:** `unix-060-fpe-r13-zz9000-CARD1-ced0s1` (1 950 897 B, `sum -r` 11366, build id 68040-260915-55), driver `zz9000.c/.h` from 5fa58ba, host gates passed, scan060 0 hits with an independent decode of all 27 ext words, r13 embedded byte-for-byte (relocations differ in exactly the six row-49 records); files, logs and the **metal checklist** in the port's `DELIVERY.md`. **Candidate 2** (`68060-260916-51`, driver 7e5c0e8) is the current artifact after the metal attach fix; candidate 1's **emulator smoke PASSED 2026-09-17** (kerntools, LC060 bed + Z3660 RTG stand-in, report `21-candidate-result.md`): the attach line is the first `io_init` message, multiuser, `mkdev` 49, `zz9k_maptest` PASS, bars through `write(2)` and through the mapping, `zz9k_cat` text, bounds symmetric (ENXIO at `board_size` both ways), counters at +0x231c as tabled, no panic. **Metal validation is a separate session** — r13 itself never ran the port's §5/§7/§8 suites on the LC060; counter addresses move by +0x231c versus r13 |
 | On the card: the kernel (second kernel file or a separate medium), `/dev/zz9000` (`mkdev.sh`), the tools in `/opt/amix/bin` (the card's convention; upstream's is `/usr/amiga/bin` — the wrapper scripts now find `zz9k_test` in either, X-INSTALL-RTG §0) | no preset or firmware change — `autoconfig_rtg NO` is what the driver wants; ZTop/firmware stay F492BEC1 |
 | Runtime: the framebuffer mapping (46 MB) exceeds the login shell's 16 MB VM default | solved in the tools (`zz9k_test` raises its own limit; `zz9k_demo` too); X would need `ulimit -v` in its startup |
 | Someone at the HDMI switch during the RTG blocks | the demo's own choreography |
@@ -72,7 +71,7 @@ RTG-side step has a transcript-visible confirmation, so a run is decidable witho
    class is settled: **NCS** (noncacheable, serialised) on r13, candidate 2 and candidate 3 — an
    unmanaged device page takes `Lcm_dev`, an unconditional `oril #0x40` in those binaries, which
    carry no `hat_cm_fb` table; `hat_cm_ram` applies to managed pages only (68040/68060 port,
-   `2026-09-27-po05-prep/HAT-CM-FB-R13.md`, 2026-09-27 — corrects this row's earlier
+   `HAT-CM-FB-R13.md`, 2026-09-27 — corrects this row's earlier
    "may be copy-back"). `/dev/mem` mmap must not be used as an oracle on any r13-lineage kernel; nothing in
    the demo needs it, and the 68040/68060 port recommends leaving r13's bytes alone. **Mitigation, both built:** `zz9k_maptest` is
    checklist row 1 (mmap-vs-`read(2)` coherence and aliasing, PASS/FAIL); and every demo picture
@@ -91,7 +90,7 @@ RTG-side step has a transcript-visible confirmation, so a run is decidable witho
 
 ## The metal probe (2026-09-16, A4000D, real LC060, r13 kernel, preset 7, no kernel change) — **PASS**
 
-Two runs, operated by the Z3660 firmware side; evidence `2026-09-16-z3660-rtg-metal/`
+Two runs, operated by the Z3660 firmware side; run artefacts
 (`probe1r-metal.txt`, `probe2r-metal.txt`, `serial-excerpt-metal.txt`, `frames-r/`); verified
 by the driver side from the transcripts and the frames.
 
@@ -176,7 +175,7 @@ open metal row.
 
 **The `dd`-on-`/dev/mem` "hang" of session 1 is not a finding — it is my diagnostic command.**
 This box's `dd` *reads* its way to a `skip=` point on a character device instead of seeking:
-our own bench evidence shows it (`2026-09-16-zz9000-rig-step2/23b-…txt`: `dd: read error
+our own bench step-2 transcript shows it (`23b-…txt`: `dd: read error
 during skip`, on a different kernel and a different device, so it is a property of the box's
 `dd`). My command was `dd if=/dev/mem bs=4 skip=67108864` — that asks for **67 million 4-byte
 reads** before the one I wanted; seven minutes of CPU and still running is exactly what that

@@ -1,12 +1,12 @@
 #!/bin/sh
-# x11/bench/build.sh -- cross-build the P-5 step-0 X clients for Amix:
+# x11/bench/build.sh -- cross-build the X measurement clients for Amix:
 #   x11perf     from the X11R6.3 tree the Xzz9000 server comes from
 #   xbench      Antti's xrtg-amix tools/xbench.c, unchanged
-#   xorfill     P-5 suspect S1 (x11/bench/xorfill.c)
-#   copyexpose  P-5 suspect S2 (x11/bench/copyexpose.c)
-#   xorcopy     P-5 S4/S5 (x11/bench/xorcopy.c)
+#   xorfill     suspect S1 (x11/bench/xorfill.c)
+#   copyexpose  suspect S2 (x11/bench/copyexpose.c)
+#   xorcopy     suspects S4/S5 (x11/bench/xorcopy.c)
 #   xdrag       an XTEST title-bar drag, for the outline-move frame (x11/bench/xdrag.c)
-#   blit-edge   P-5 fix 3: blitter paths against a client-side reference (x11/bench/blit-edge.c)
+#   blit-edge   fix 3: blitter paths against a client-side reference (x11/bench/blit-edge.c)
 #   zline       zero-width line rasterisation checksum (x11/bench/zline.c)
 #   zz9k_blitbench  per-record blitter timing through /dev/zz9000, no X (x11/bench/zz9k_blitbench.c)
 #

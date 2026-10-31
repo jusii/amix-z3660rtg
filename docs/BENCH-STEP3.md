@@ -1,6 +1,6 @@
 # BENCH-STEP3.md — Z3660-row robustness on the stand-in (transcript-decidable)
 
-> **Out-of-repo citations.** Evidence directories are cited by their date-stamped names. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
+> **Out-of-repo citations.** Run artefacts (reports, transcripts, frames) are cited by file name. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
 
 **Result of the first run (2026-09-16, kernel 40217 = c5a5a46, tools f5799f9):** R1, R4, R6, R7
 PASS; R3 PASS by frame (its enable/disable strings are kernel-console printfs, not telnet

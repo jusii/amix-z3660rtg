@@ -183,7 +183,7 @@ extern int hat_cm_fb_add();
 #endif
 
 /*
- * RTG monitor switch (P-8 / RT-04).  The machine's switch line belongs to the kernel's
+ * RTG monitor switch (RT-04).  The machine's switch line belongs to the kernel's
  * card-independent monsw driver (sys/monsw.h, the port's driver-line kernels).  This driver
  * only (a) registers with it, offering the Z3660 firmware's `monitor_switch` (register
  * 0x318) as the seed -- used only when /etc/monsw is absent; (b) answers the RTG contract's

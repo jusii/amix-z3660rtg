@@ -1,5 +1,5 @@
 /*
-** xorfill.c -- P-5 suspect S1: does the server honour GXxor in PolyFillRect?
+** xorfill.c -- suspect S1: does the server honour GXxor in PolyFillRect?
 **
 ** Draws the same shape twice with GXxor, which must leave the window exactly
 ** as it was, and reads the pixels back.  Three cases, each in its own window

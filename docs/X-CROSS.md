@@ -2,7 +2,7 @@
 
 Running log and recipe for the X lane (started 2026-09-17: X on RTG with olwm
 etc., via the cross route). Everything here is measured unless marked *plan*. Work dir:
-`2026-09-18-xzz9000-cross/` (`src/xc` = the prepared tree, `log/` = every command's
+a build directory of your choice (`src/xc` = the prepared tree, `log/` = every command's
 output, `imakecpp.sh` = the host preprocessor wrapper). Upstream is never edited: the
 reference clone of https://github.com/isoriano1968/x11r6.3-amix at **cb61a21** (= upstream head,
 confirmed 2026-09-18); every deviation lives in the build tree and is
@@ -12,10 +12,10 @@ listed under "Deviations" with the question it raises for isoriano.
 >
 > **Build inputs.** `host.def` and `imakecpp.sh` are this recipe's two host-side inputs. They are
 > tracked in `x11/cross/` as scrubbed copies (paths made parameters; `x11/cross/README.md` lists
-> every substitution). The copies of record are in the build dir outside the repo
-> `2026-09-18-xzz9000-cross/out/`, with their sha256 in `x11/cross/README.md`.
+> every substitution). The copies of record are in the build dir's `out/`, outside the repo,
+> with their sha256 in `x11/cross/README.md`.
 >
-> **Out-of-repo citations.** Evidence directories are cited by their date-stamped names. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
+> **Out-of-repo citations.** Run artefacts (reports, transcripts, frames) are cited by file name. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
 
 ## 0. Scope
 
@@ -36,7 +36,7 @@ no target-run `rgb`/`bdftopcf`/`mkfontdir`: none of the toolchain's shared-libra
 | Host cpp for imake | `imakecpp.sh` = `/usr/bin/cpp -undef` with the host imake's compiled-in `-Dlinux`/`-Dunix` dropped (imake forwards `-D` but not `-U`, and `Imake.cf` would select `linux.cf` beside `amix.cf`); run as `IMAKECPP=…/imakecpp.sh` | `log/top-Makefile.test`: `CC = gcc`, `STD_DEFINES = -DAMIX -Dm68k -DSVR4`, `CCOPTIONS = -ansi -finline-functions`, `EXTRA_LIBRARIES = -lsocket -lnsl`, `CPP = /usr/public/lib/gcc-cpp` — identical to the on-box configuration |
 | The `libsocket` link gap (toolchain "known, open") | `select` is undefined and `libsocket.so` itself imports `syslog`/`seteuid`; `libc.so.1` exports only `_abi_select`; the plain names are **weak in `libc.a`** (`select(W) seteuid(W) syslog(W)`, `_select(T)`). GNU ld 2.8.1 does not pull archive members for a shared library's undefined symbols, so: **`-usyslog -useteuid` (joined form — the wrapper splits `-u NAME`) and `$sysroot/usr/ccs/lib/libc.a` after the shared libraries** → links clean, DT_NEEDED by name (`libsocket.so libnsl.so /usr/lib/libc.so.1`), `select`/`syslog`/`seteuid` bound statically from `libc.a` | `scratchpad/probe/seltest.c`, `seltest4` (49 312 B) |
 | `-ldbm`, `-lm` | only as archives in `usr/ccs/lib` (not on the wrapper's default path): needs `-L$sysroot/usr/ccs/lib` | sysroot listing |
-| `-lscreen` and `<amiga/screen.h>` | **the sysroot never copied `/usr/amiga`**: `usr/lib/libscreen.so` is a dangling symlink to `/usr/amiga/lib/libscreen.so`; the DDX includes `<amiga/screen.h>` from `/usr/amiga/include` (the port's `-I/usr/amiga/include`) — both must come from a running Amix (rig or image mount); asked of kerntools → `2026-09-18-usr-amiga/` | wrapper `resolve_lib` refuses `-lscreen`; header grep |
+| `-lscreen` and `<amiga/screen.h>` | **the sysroot never copied `/usr/amiga`**: `usr/lib/libscreen.so` is a dangling symlink to `/usr/amiga/lib/libscreen.so`; the DDX includes `<amiga/screen.h>` from `/usr/amiga/include` (the port's `-I/usr/amiga/include`) — both must come from a running Amix (rig or image mount); pulled from the rig with amix-kerntools | wrapper `resolve_lib` refuses `-lscreen`; header grep |
 | Server mode table | `zz9000_modes[]` = 640x480 800x600 1024x768 1280x720 1280x1024 1920x800, default 1920x800 (`zz9000hw.c:13-23`); `-mode WxH` is the only selector (`amixIo.c:403-410`); the Z3660 row refuses 1920x800 and the table lacks 1920x1080/1280x800 | upstream source |
 | Runtime on the box | `/dev/zz9000` (49,0); fonts via `-fp`; `rgb` via `-co`; `-ac -kb` (XKB device path unfinished upstream); keyboard/mouse through the screen manager (`OpenScreen`, `SIOCACTIVATE`, `SIOCSETINPUTMODE SIM_RAWKEY`) — Amiga side | `startXzz9000`, `rtgInit.c:164-198` |
 
@@ -52,7 +52,7 @@ no target-run `rgb`/`bdftopcf`/`mkfontdir`: none of the toolchain's shared-libra
 | `programs/Xserver` (`make -k Xzz9000`) | **437 compiles, 424 objects, 5 warnings, 0 errors outside the Amiga DDX**; archives `dix os mi mfb cfb cfb16 Xext xkb lbx record dbe XIE` built. **Every failure is `amix.h:38: amiga/screen.h: No such file`** (10 DDX files) — the pending `/usr/amiga/include` | `log/06-Xserver.log` |
 
 **The first wall is not the toolchain**: it is the missing `/usr/amiga` tree (headers + `libscreen.so`),
-which no available sysroot carries; asked of kerntools (rig) — an image mount is the
+which no available sysroot carries; it is pulled from the rig with amix-kerntools — an image mount is the
 alternative. No question for isoriano yet.
 
 ## 1b. The server is built (2026-09-18)

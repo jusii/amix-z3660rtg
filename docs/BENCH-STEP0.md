@@ -1,15 +1,15 @@
 # BENCH-STEP0.md — regression of the board-table refactor on the ZZ9000 rig
 
-> **Out-of-repo citations.** Evidence directories are cited by their date-stamped names. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
+> **Out-of-repo citations.** Run artefacts (reports, transcripts, frames) are cited by file name. They, sibling repositories and archived images are kept outside this repo and are not needed to build or use the driver.
 
-**Result: PASS, 2026-09-16** (kernel 20408; every criterion met, nothing adapted; evidence
-`2026-09-16-zz9000-rig-step0/`, report `27-report.md`; verified here:
+**Result: PASS, 2026-09-16** (kernel 20408; every criterion met, nothing adapted; rig report
+`27-report.md`; verified here:
 T1 transcript diff = the allowed lines only, T4 values exact, T1/T2 screenshots byte-identical
 to the 2026-09-15 lane, `-Wall` sets identical). Kept as the record of what was run.
 
 **For the amix-kerntools build rig.** Bench step 0 of DESIGN.md §6: prove that the refactored
 driver (branch `z3660-target`, default rows, no `make=`) behaves exactly like upstream 75e2449
-did in the 2026-09-15 lane (kernel 09684, evidence `2026-09-15-zz9000-rig/`). The
+did in the 2026-09-15 lane (kernel 09684). The
 driver side never builds the kernel or drives the rig; it verifies this report.
 
 ## What to build
@@ -21,7 +21,7 @@ driver side never builds the kernel or drives the rig; it verifies this report.
 | chardevs record | the existing `chardev zz9000 …/amix-z3660rtg/overlay/usr/sys/amiga/driver/zz9000 49 zz9000init zz9000open,zz9000close,zz9000read,zz9000write,zz9000ioctl,zz9000mmap` with **`cflags_strip=-fno-builtin` kept**, **no `make=`**, `git=6e0acde`, and a **new `sha256=` pin** over the tree (the bytes changed: `zz9000.c`, `zz9000.h`, `Makefile`, `tools/zz9k_test.c`) |
 | Console hook | OFF, as before (`console=` absent) |
 | Rig config | `configs/amix-z3660-piscsi-rig-zz9000.uae` unchanged: `gfxcard_type=ZZ9000_Z2`, `gfxcard_size=4` |
-| Kernel | golden 030 build, same recipe as the 2026-09-15 lane; the D245 clean-gate must pass (two builds, equal `sum -r`) |
+| Kernel | golden 030 build, same recipe as the 2026-09-15 lane; the clean-build gate must pass (two builds, equal `sum -r`) |
 
 The generated driver rule must read `cd zz9000; $(MAKE)` with nothing appended; the driver's
 compile line on the box must show `-D_KERNEL -DSVR40 -DSVR4  -I../../.. -I../../inc` (two

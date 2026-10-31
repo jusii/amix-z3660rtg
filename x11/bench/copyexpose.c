@@ -1,5 +1,5 @@
 /*
-** copyexpose.c -- P-5 suspect S2: window-to-window CopyArea from a partly
+** copyexpose.c -- suspect S2: window-to-window CopyArea from a partly
 ** obscured source.
 **
 ** Three windows:
