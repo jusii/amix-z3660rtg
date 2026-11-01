@@ -390,7 +390,9 @@ finding that the same page carries the **ethernet driver's doorbells** (`+0x104.
 (6137966): `fb_offset = 0`, `fb_phys = 0x200000`, `board_size = fb_size = 0x2E00000`;
 `zz9k_devphys()` maps every device offset into the framebuffer. Userland never maps the
 register page, the firmware's printf-per-access test area, the piscsi mailbox, ROM or bounce;
-registers are reached through GETREG/SETREG only, bounded by `reg_size = 0x1000`. `Xzz9000`
+registers are reached through GETREG/SETREG only, bounded by `reg_size = 0x1000` and, since
+2026-11-01, by the row's register allow-list, with privilege; the node is `0660 root:sys`
+(`docs/IOCTL-ABI.md`). `Xzz9000`
 and `zz9k_test` are unaffected (they take `fb_offset` from the driver). On the ZZ9000 rows
 `fb_phys == fb_offset` and the helper is the identity. Alternative: raw window + a `0600`
 node; simpler, and leaves the hazard.
