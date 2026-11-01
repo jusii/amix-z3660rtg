@@ -1,0 +1,78 @@
+.\" Copyright (c) 2026 Jussi Alanärä.  SPDX-License-Identifier: MIT
+.TH ZTOP 1 "1 November 2026" "amix-z3660rtg" "User Commands"
+.SH NAME
+ztop \- show the Z3660's temperatures, voltages and CPU clock
+.SH SYNOPSIS
+.B ztop
+[
+.B \-1
+] [
+.B \-i
+.I seconds
+] [
+.B \-d
+.I device
+]
+.SH DESCRIPTION
+.B ztop
+reads the measurements the Z3660 accelerator's firmware makes \(em the
+values the AmigaOS ZTop shows \(em through the RTG driver, and shows them on
+the terminal, refreshed every two seconds: the FPGA, board and 68060
+temperatures, the FPGA core and auxiliary voltages, the 3.3 V and 5 V rails,
+the supply of the LTC2990 monitor chip, and the CPU clock the preset sets.
+For each measurement it shows the latest value, a running average (each new
+value weighs one tenth, as in ZTop), and the lowest and highest seen.
+On a terminal the screen is redrawn; otherwise each refresh is printed as a
+block followed by an empty line.
+.PP
+It reads the information node
+.IR /dev/zz9000i ,
+which any user may open, and falls back to
+.IR /dev/zz9000 .
+It writes nothing to the board.
+A measurement the firmware does not offer is left out.
+.SH OPTIONS
+.TP
+.B \-1
+Print each measurement once, one line each, and exit.
+A line is a name, the value and its unit:
+.BR fpga_temp ,
+.BR board_temp ,
+.B cpu_temp
+in degrees Celsius,
+.BR vcore ,
+.BR vaux ,
+.BR v3v3 ,
+.BR v5 ,
+.B vcc
+in volts and
+.B cpu_mhz
+in MHz, for example
+.RS
+.nf
+cpu_temp 45.6 C
+v5 5.02 V
+.fi
+.RE
+.TP
+.BI \-i " seconds"
+Refresh every
+.I seconds
+(1 to 60; the default is 2).
+.TP
+.BI \-d " device"
+Read this device instead.
+.SH EXIT STATUS
+0 when the values were shown; 1 when the device cannot be opened or its
+driver has no sensors call; 2 for a usage error; 3 when the board offers no
+sensors (a ZZ9000, or Z3660 firmware without them).
+.SH FILES
+.TP
+.I /dev/zz9000i
+the RTG driver's information node (character 49, minor 128, mode 0444)
+.SH SEE ALSO
+.BR xztop (1)
+.SH NOTES
+The temperatures and voltages are the firmware's latest measurement; it
+takes a new set about once a second.
+The CPU clock is the value the preset asks for, not a measurement.
