@@ -230,6 +230,7 @@ static int zz9k_cons_hook();
 extern void (*conputc)();
 
 static void (*zz9k_old_conputc)();
+static void zz9k_kputc();
 #endif
 static int zz9k_console_on;
 static int zz9k_console_redirect;
@@ -1634,13 +1635,127 @@ struct zz9k_board *bp;
     return 0;
 }
 
+/*
+ * The renderer's guard.  The console is written at the writer's spl, which may be an
+ * interrupt's (a printf from a handler), so a write can arrive in the middle of another:
+ * inside an escape sequence, a scroll, or with the cursor drawn.  Every way into the
+ * renderer takes the busy flag at spl7 -- which raises to level 4 only in these kernels, so
+ * levels 5 and 6 still come through -- and a writer that finds it taken, i.e. one that
+ * interrupted the renderer, puts its bytes in a small ring instead.  The owner draws them
+ * before it lets go.  Bytes that do not fit are dropped and counted (zz9k_con_lost).
+ */
+#define ZZ9K_CON_RING   256     /* a power of two */
+
+static int zz9k_con_busy;
+static unsigned char zz9k_con_ring[ZZ9K_CON_RING];
+static int zz9k_con_head;
+static int zz9k_con_tail;
+long zz9k_con_lost = 0;         /* bytes the ring dropped */
+
+/* Called at spl7 with the renderer busy: keep p[0..n) for its owner. */
+static void
+zz9k_con_defer(p, n)
+unsigned char *p;
+unsigned n;
+{
+    int next;
+
+    for (; n; --n, ++p) {
+        next = (zz9k_con_head + 1) & (ZZ9K_CON_RING - 1);
+        if (next == zz9k_con_tail) {
+            ++zz9k_con_lost;
+            continue;
+        }
+        zz9k_con_ring[zz9k_con_head] = *p;
+        zz9k_con_head = next;
+    }
+}
+
+/* Raise to spl7 (the old level in *sp) and take the renderer: 1 if it is ours now. */
+static int
+zz9k_con_take(sp)
+int *sp;
+{
+    *sp = spl7();
+    if (zz9k_con_busy)
+        return 0;
+    zz9k_con_busy = 1;
+    return 1;
+}
+
+/* Called at spl7 by the owner: draw what others left, let go, back to level s. */
+static void
+zz9k_con_release(s)
+int s;
+{
+    unsigned char c;
+
+    for (;;) {
+        while (zz9k_con_tail != zz9k_con_head) {
+            c = zz9k_con_ring[zz9k_con_tail];
+            zz9k_con_tail = (zz9k_con_tail + 1) & (ZZ9K_CON_RING - 1);
+            zz9k_conputc(c);
+        }
+        zz9k_con_busy = 0;
+        if (zz9k_con_tail == zz9k_con_head)
+            break;
+        zz9k_con_busy = 1;          /* a byte came in after the last look */
+    }
+    splx(s);
+}
+
+/* p[0..n) through the renderer, at spl7; kept for the owner if it is busy. */
+static void
+zz9k_con_write(p, n)
+unsigned char *p;
+unsigned n;
+{
+    int s;
+
+    if (!zz9k_con_take(&s)) {
+        zz9k_con_defer(p, n);
+        splx(s);
+        return;
+    }
+    while (n--)
+        zz9k_conputc(*p++);
+    zz9k_con_release(s);
+}
+
+/*
+ * A long job on the console's state (start, stop) from process context: it holds the
+ * flag, not the level, so the clock keeps ticking through a full-screen clear; interrupt
+ * writers meanwhile go to the ring.  0 = EBUSY (never seen from process context).
+ */
+static int
+zz9k_con_hold()
+{
+    int s;
+
+    if (!zz9k_con_take(&s)) {
+        splx(s);
+        return 0;
+    }
+    splx(s);
+    return 1;
+}
+
+static void
+zz9k_con_unhold()
+{
+    zz9k_con_release(spl7());
+}
+
 static int
 zz9k_console_enable(bp)
 struct zz9k_board *bp;
 {
     int error;
 
+    if (!zz9k_con_hold())
+        return EBUSY;
     error = zz9k_console_start(bp);
+    zz9k_con_unhold();
     if (error)
         return error;
 #ifdef ZZ9K_MODULE
@@ -1652,7 +1767,7 @@ struct zz9k_board *bp;
 #else
     if (!zz9k_old_conputc)
         zz9k_old_conputc = conputc;
-    conputc = zz9k_conputc;
+    conputc = zz9k_kputc;
 #endif
     zz9k_console_redirect = 1;
     zz9k_console_disabled = 0;
@@ -1663,25 +1778,7 @@ static int
 zz9k_console_redirect_enable(bp)
 struct zz9k_board *bp;
 {
-    int error;
-
-    error = zz9k_console_start(bp);
-    if (error)
-        return error;
-#ifdef ZZ9K_MODULE
-    error = cons_hook_set(zz9k_cons_hook);
-    if (error) {
-        zz9k_console_on = 0;
-        return error;
-    }
-#else
-    if (!zz9k_old_conputc)
-        zz9k_old_conputc = conputc;
-    conputc = zz9k_conputc;
-#endif
-    zz9k_console_redirect = 1;
-    zz9k_console_disabled = 0;
-    return 0;
+    return zz9k_console_enable(bp);
 }
 
 static void
@@ -1689,6 +1786,8 @@ zz9k_console_disable()
 {
     struct zz9k_board *bp;
 
+    if (!zz9k_con_hold())
+        return;
     bp = zz9k_console_bp;
     zz9k_console_cursor(0);
 #ifdef ZZ9K_MODULE
@@ -1701,44 +1800,58 @@ zz9k_console_disable()
     zz9k_console_redirect = 0;
     zz9k_console_disabled = 1;
     zz9k_console_on = 0;
+    zz9k_con_unhold();                  /* what interrupted us is dropped: the console is off */
     if (bp)
         zz9k_set_switch_hw(bp, ZZ9K_SWITCH_CAPTURE);
     ZZ9K_MONSW_SET(0);
 }
-
-#ifndef ZZ9K_MODULE
-int
-zz9000consoleputc(c)
-unsigned char c;
-{
-    if (!zz9k_console_redirect)
-        return 0;
-    if (zz9k_console_bp) {
-        zz9k_set_switch_hw(zz9k_console_bp, ZZ9K_SWITCH_RTG);
-        ZZ9K_MONSW_SET(1);
-    }
-    zz9k_conputc(c);
-    return 1;
-}
-#endif
 
 int
 zz9000consolewrite(p, n)
 unsigned char *p;
 unsigned n;
 {
+    int s;
+
     if (!zz9k_console_redirect)
         return 0;
+    if (!zz9k_con_take(&s)) {
+        zz9k_con_defer(p, n);
+        splx(s);
+        return 1;
+    }
     if (zz9k_console_bp) {
         zz9k_set_switch_hw(zz9k_console_bp, ZZ9K_SWITCH_RTG);
         ZZ9K_MONSW_SET(1);
     }
-    while (n--) {
-        zz9k_conputc(*p);
-        ++p;
-    }
+    while (n--)
+        zz9k_conputc(*p++);
+    zz9k_con_release(s);
     return 1;
 }
+
+#ifndef ZZ9K_MODULE
+/* the static kernel's conputc while the console is redirected: one byte, guarded */
+static void
+zz9k_kputc(c)
+int c;
+{
+    unsigned char b;
+
+    b = (unsigned char)c;
+    (void)zz9000consolewrite(&b, 1);
+}
+
+int
+zz9000consoleputc(c)
+int c;
+{
+    unsigned char b;
+
+    b = (unsigned char)c;
+    return zz9000consolewrite(&b, 1);
+}
+#endif
 
 #ifdef ZZ9K_MODULE
 /*
@@ -1763,19 +1876,26 @@ static void
 zz9k_console_puts(s)
 char *s;
 {
-    while (*s)
-        zz9k_conputc(*s++);
+    char *e;
+
+    for (e = s; *e; ++e)
+        ;
+    zz9k_con_write((unsigned char *)s, (unsigned)(e - s));
 }
 
 static int
 zz9k_console_test(bp)
 struct zz9k_board *bp;
 {
-    int row, tens, ones;
-    char digit;
+    int row, tens, ones, error;
+    unsigned char digit;
 
     if (!zz9k_console_on) {
-        if (zz9k_console_start(bp))
+        if (!zz9k_con_hold())
+            return EBUSY;
+        error = zz9k_console_start(bp);
+        zz9k_con_unhold();
+        if (error)
             return ENXIO;
     }
     zz9k_set_switch_hw(zz9k_console_bp, ZZ9K_SWITCH_RTG);
@@ -1799,9 +1919,9 @@ struct zz9k_board *bp;
             if (++tens >= 10)
                 tens = 0;
         digit = '0' + tens;
-        zz9k_conputc(digit);
+        zz9k_con_write(&digit, 1);
         digit = '0' + ones;
-        zz9k_conputc(digit);
+        zz9k_con_write(&digit, 1);
         zz9k_console_puts(" -- no garbage should remain after this line\n");
     }
     return 0;
@@ -2354,8 +2474,7 @@ int *rvalp;
             n = cp.len > sizeof cbuf ? sizeof cbuf : cp.len;
             if (copyin((caddr_t)cp.buf, (caddr_t)cbuf, n))
                 return EFAULT;
-            for (i = 0; i < n; ++i)
-                zz9k_conputc((unsigned char)cbuf[i]);
+            zz9k_con_write((unsigned char *)cbuf, (unsigned)n);
             cp.buf += n;
             cp.len -= n;
         }

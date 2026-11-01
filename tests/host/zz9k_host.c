@@ -374,6 +374,78 @@ t_blits()
     zz9k_blit_on = 1;
 }
 
+static int
+cwrite(str)
+char *str;
+{
+    return zz9000consolewrite((unsigned char *)str, (unsigned)strlen(str));
+}
+
+#ifdef ZZ9K_MONSW
+static void
+nested_writer()
+{
+    cwrite("Q");                /* as from an interrupt inside the renderer */
+}
+#endif
+
+static void
+t_console_guard()
+{
+    static char big[300];
+    int col;
+
+    EQ(iocv(ZZ9KIOC_CONSOLE, ZZ9K_CONSOLE_ENABLE, RW, &kroot), 0, "console on");
+#ifdef ZZ9K_MODULE
+    CHECK(khook == zz9k_cons_hook, "the module's hook is set");
+    EQ((*khook)(&kconsole2, (unsigned char *)"zz", 2), 0, "a console not on display is passed on");
+#else
+    CHECK(conputc == zz9k_kputc, "conputc goes through the guard");
+#endif
+    EQ(cwrite("ab"), 1, "a write is taken");
+    EQ(zz9k_console_col, 2, "two columns");
+    EQ(kspl, 0, "the level is back");
+    zz9k_con_busy = 1;          /* the renderer is in use below us */
+    EQ(cwrite("XYZ"), 1, "a nested write is taken");
+    EQ(zz9k_console_col, 2, "and not drawn yet");
+    EQ((zz9k_con_head - zz9k_con_tail) & (ZZ9K_CON_RING - 1), 3, "three bytes kept");
+    zz9k_con_busy = 0;
+    cwrite("c");
+    EQ(zz9k_console_col, 6, "the owner drew its byte and then the three kept");
+    EQ(zz9k_con_head, zz9k_con_tail, "the ring is empty");
+#ifdef ZZ9K_MONSW
+    kmonsw_hook = nested_writer;
+    col = zz9k_console_col;
+    cwrite("de");
+    EQ(zz9k_console_col, col + 3, "a writer inside the renderer is drawn after it");
+    EQ(zz9k_con_busy, 0, "the renderer is free");
+#endif
+    memset(big, 'x', sizeof big);
+    zz9k_con_lost = 0;
+    zz9k_con_busy = 1;
+    zz9000consolewrite((unsigned char *)big, (unsigned)sizeof big);
+    EQ(zz9k_con_lost, (long)sizeof big - (ZZ9K_CON_RING - 1), "what does not fit is counted");
+    zz9k_con_busy = 0;
+    zz9000consolewrite((unsigned char *)big, 0U);
+    EQ(zz9k_con_head, zz9k_con_tail, "drained");
+    {
+        struct zz9k_conputs cp;
+
+        memcpy(uspace + 8192, "\r12", 3);
+        cp.buf = (char *)8192;
+        cp.len = 3;
+        zz9k_con_busy = 1;
+        EQ(ioc(ZZ9KIOC_CONPUTS, 64, &cp, sizeof cp, RW, &kuser), 0, "CONPUTS");
+        EQ((zz9k_con_head - zz9k_con_tail) & (ZZ9K_CON_RING - 1), 3, "CONPUTS goes through the guard");
+        zz9k_con_busy = 0;
+        cwrite("");
+        EQ(zz9k_console_col, 2, "drawn by the next owner");
+    }
+    EQ(kspl, 0, "the level is back");
+    EQ(iocv(ZZ9KIOC_CONSOLE, ZZ9K_CONSOLE_DISABLE, RW, &kroot), 0, "console off");
+    EQ(cwrite("ab"), 0, "a write is passed on when off");
+}
+
 static void
 t_rect()
 {
@@ -439,6 +511,7 @@ char **argv;
     t_allowlist();
     t_band();
     t_blits();
+    t_console_guard();
     t_rect();
     printf("%s: %d passed, %d failed\n", ZZ9K_HOST_CONFIG, npass, nfail);
     return nfail != 0;
