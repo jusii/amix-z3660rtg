@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-01 — the review fixes, the sensors ioctl with ztop and xztop, a board above the identity map; module 1.1.1-1 (643a555..5c433fe)
+
+Commands that change the board need a descriptor open for writing; raw register access, CONSOLE, PROBE and SETSWITCH
+need privilege; GETREG/SETREG reach only the row's RTG registers (on the Z3660, 0x104 and 0x190–0x1AC are refused);
+/dev/zz9000 is 0660 root:sys. Blitter bands default to 8192 px and BLITS has a per-call budget with a partial count.
+The console runs guarded under spl7, scrolls by panning a ring, and pauses on a client's SETMODE. FILL is capped at
+1 MiB per call. New, additions only: GETMODES, SENSORS, the read-only information node /dev/zz9000i (c 49 128, 0444),
+ztop(1) and xztop(1). A board above VSECT1 is mapped automatically (dev_kvmap on k46, sptalloc on k30). The 1.1
+launcher is x11/1.1/startx-rtg (no -ac); the 1.0 kit file is unchanged. Host tests in tests/host. docs/IOCTL-ABI.md.
+Modules k30 0702dadf (37 742 B), k46 d0e7a7e3 (37 715 B).
+
 ## 2026-10-31 — docs and comments state facts without internal ids or scratch paths (7023ea9, 763b9a7)
 
 Local tool files leave .gitignore. Module bytes unchanged (k30 0db1156d, k46 0a36d5fc); the X kit is unchanged
