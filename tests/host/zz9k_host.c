@@ -444,6 +444,26 @@ t_console_enable()
 }
 
 static void
+t_console_pause()
+{
+    struct zz9k_conputs cp;
+
+    EQ(iocv(ZZ9KIOC_CONSOLE, ZZ9K_CONSOLE_ENABLE, RW, &kroot), 0, "console on");
+    EQ(cwrite("x"), 1, "the console takes writes");
+    setmode(1024, 768);
+    EQ(zz9k_console_paused, 1, "a client's SETMODE pauses it");
+    EQ(cwrite("x"), 0, "writes go to the native screen meanwhile");
+    cp.buf = (char *)8192;
+    cp.len = 1;
+    EQ(ioc(ZZ9KIOC_CONPUTS, 64, &cp, sizeof cp, RW, &kuser), EBUSY, "CONPUTS while paused");
+    EQ(zz9000close(0, RW, 0, &kroot), 0, "the client's last close");
+    EQ(zz9k_console_paused, 0, "resumed");
+    EQ(zz9k_boards[0].width, zz9k_con_w, "in the console's mode");
+    EQ(cwrite("x"), 1, "the console takes writes again");
+    EQ(iocv(ZZ9KIOC_CONSOLE, ZZ9K_CONSOLE_DISABLE, RW, &kroot), 0, "console off");
+}
+
+static void
 t_console_guard()
 {
     static char big[300];
@@ -745,6 +765,7 @@ char **argv;
     t_blits();
     t_console_enable();
     t_console_guard();
+    t_console_pause();
     t_console_scroll();
     t_cpu_loops();
     t_fill();

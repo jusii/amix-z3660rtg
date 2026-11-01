@@ -104,3 +104,12 @@ fill calls again from `offset + r`.
 The X server clears the screen once at start with one FILL and ignores the result. It now
 clears the first 1 MiB. Its first root-window paint covers the rest, so nothing visible
 changes. To clear all of it, it would loop on the count.
+
+## The console steps aside for a client's mode
+
+With the console redirected to the board, a `SETMODE` from a client (the X server, `zz9k_mode`)
+pauses the console. The client owns the screen and its stride. Console output goes to the
+native screen meanwhile, and the monitor switch is left alone. `CONPUTS` gives `EBUSY` while
+the console is paused. The last close of `/dev/zz9000` resumes the console: its mode, a
+cleared screen, the monitor on the RTG. Before 1.1 the console kept drawing at its own stride
+into the client's framebuffer and switched the monitor on every write.

@@ -243,6 +243,12 @@ static void zz9k_kputc();
 #endif
 static int zz9k_console_on;
 static int zz9k_console_redirect;
+/*
+ * A client's SETMODE while the console shows on that board pauses it: the client owns the
+ * screen and its stride, and console output goes to the native screen meanwhile, without
+ * switching the monitor back.  The last close resumes it (mode, clear, monitor).
+ */
+static int zz9k_console_paused;
 static int zz9k_console_row;
 static int zz9k_console_col;
 static int zz9k_console_cols;
@@ -1674,7 +1680,7 @@ static void
 zz9k_conputc(c)
 unsigned char c;
 {
-    if (!zz9k_console_on || !zz9k_console_bp)
+    if (!zz9k_console_on || zz9k_console_paused || !zz9k_console_bp)
         return;
 
     zz9k_console_cursor(0);
@@ -1786,6 +1792,7 @@ struct zz9k_board *bp;
     zz9k_console_args[2] = 0;
     zz9k_console_args[3] = 0;
     zz9k_console_reset_attr();
+    zz9k_console_paused = 0;
     zz9k_console_clear();
 
     zz9k_console_on = 1;
@@ -1979,7 +1986,7 @@ unsigned n;
 {
     int s;
 
-    if (!zz9k_console_redirect)
+    if (!zz9k_console_redirect || zz9k_console_paused)
         return 0;
     if (!zz9k_con_take(&s)) {
         zz9k_con_defer(p, n);
@@ -2056,7 +2063,7 @@ struct zz9k_board *bp;
     int row, tens, ones, error;
     unsigned char digit;
 
-    if (!zz9k_console_on) {
+    if (!zz9k_console_on || zz9k_console_paused) {
         if (!zz9k_con_hold())
             return EBUSY;
         error = zz9k_console_start(bp);
@@ -2141,6 +2148,12 @@ struct cred *cr;
         zz9k_boards[unit].svga_switch = SVGAMONITORSWITCH_Amiga;   /* what Get answers now */
     }
 #endif
+    /* the client that paused the console is gone: the console takes the screen back */
+    if (unit < ZZ9K_MAXBOARDS && zz9k_console_redirect && zz9k_console_paused &&
+        zz9k_console_bp == &zz9k_boards[unit] && zz9k_con_hold()) {
+        (void)zz9k_console_start(zz9k_console_bp);
+        zz9k_con_unhold();
+    }
     return 0;
 }
 
@@ -2507,6 +2520,11 @@ int *rvalp;
             return EINVAL;
         if ((unsigned long)sm.width * sm.height * bpp > bp->fb_size)
             return ENOMEM;
+        if (zz9k_console_on && zz9k_console_bp == bp && zz9k_con_hold()) {
+            zz9k_console_cursor(0);
+            zz9k_console_paused = 1;
+            zz9k_con_unhold();
+        }
         zz9k_set_mode_hw(bp, id, sm.color_mode, sm.scale_mode);
         bp->width = sm.width;
         bp->height = sm.height;
@@ -2636,6 +2654,8 @@ int *rvalp;
             return EFAULT;
         if (!zz9k_console_on || zz9k_console_bp != bp)
             return ENXIO;
+        if (zz9k_console_paused)
+            return EBUSY;
         while (cp.len) {
             n = cp.len > sizeof cbuf ? sizeof cbuf : cp.len;
             if (copyin((caddr_t)cp.buf, (caddr_t)cbuf, n))
