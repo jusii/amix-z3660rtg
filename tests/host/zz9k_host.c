@@ -485,6 +485,50 @@ t_csi()
     zz9k_blit_on = 1;
 }
 
+static struct {
+    struct zz9k_font f;
+    unsigned char data[16];
+} kfont;
+
+static void
+t_font()
+{
+    unsigned short *p;
+    int i;
+
+    memset(&kfont, 0, sizeof kfont);
+    kfont.f.f_magic = ZZ9K_FONT_MAGIC;
+    kfont.f.f_height = 0;
+    kfont.f.f_ctable['M'].ce_move = 7;
+    builtinfont[0] = &kfont.f;
+    zz9k_blit_on = 0;
+    EQ(iocv(ZZ9KIOC_CONSOLE, ZZ9K_CONSOLE_ENABLE, RW, &kroot), 0, "console on");
+    CHECK(zz9k_console_font == 0 && zz9k_console_font_w == ZZ9K_FALLBACK_FONT_W,
+        "a font of height 0 is refused");
+    kfont.f.f_height = 8;
+    kfont.f.f_ctable['M'].ce_move = 16;
+    EQ(iocv(ZZ9KIOC_CONSOLE, ZZ9K_CONSOLE_ENABLE, RW, &kroot), 0, "console again");
+    CHECK(zz9k_console_font == 0, "a font wider than 16 is refused");
+    kfont.f.f_ctable['M'].ce_move = 7;
+    kfont.f.f_ctable['A'].ce_height = 8;
+    kfont.f.f_ctable['A'].ce_width = 8;
+    kfont.f.f_ctable['A'].ce_bpl = 1;
+    kfont.f.f_ctable['A'].ce_data = (unsigned short)((char *)kfont.data - (char *)&kfont);
+    for (i = 0; i < 8; ++i)
+        kfont.data[i] = 0x81;
+    kfont.f.f_ctable['W'] = kfont.f.f_ctable['A'];
+    kfont.f.f_ctable['W'].ce_width = 40;        /* a bad width: drawn clipped, no overrun */
+    EQ(iocv(ZZ9KIOC_CONSOLE, ZZ9K_CONSOLE_ENABLE, RW, &kroot), 0, "console with the font");
+    CHECK(zz9k_console_font == &kfont.f && zz9k_console_font_w == 8, "an 8x8 font is used");
+    cwrite("AW\n");             /* the cursor off row 0 */
+    p = (unsigned short *)zz9k_console_bp->fb + (unsigned long)zz9k_con_top * zz9k_con_w;
+    CHECK(p[0] == ZZ9K_FG && p[1] == ZZ9K_BG && p[7] == ZZ9K_FG, "the font's A drawn");
+    CHECK(p[8] == ZZ9K_FG && p[15] == ZZ9K_FG && p[16] != ZZ9K_FG, "W stays in its cell");
+    EQ(iocv(ZZ9KIOC_CONSOLE, ZZ9K_CONSOLE_DISABLE, RW, &kroot), 0, "console off");
+    builtinfont[0] = 0;
+    zz9k_blit_on = 1;
+}
+
 static void
 t_console_pause()
 {
@@ -822,6 +866,7 @@ char **argv;
     t_console_guard();
     t_console_pause();
     t_csi();
+    t_font();
     t_console_scroll();
     t_cpu_loops();
     t_fill();

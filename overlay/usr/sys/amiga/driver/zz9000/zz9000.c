@@ -1465,23 +1465,28 @@ unsigned char c;
             data = (unsigned char *)zz9k_console_font + ce->ce_data;
     }
 
+    bits = 0;
     for (py = 0; py < zz9k_console_font_h; ++py) {
-        bits = zz9k_glyph(c, py);
+        if (!data)
+            bits = zz9k_glyph(c, py);   /* the 5x7 glyphs only without a font */
         p = ZZ9K_CON_PIX(x, y + py);
         for (px = 0; px < zz9k_console_font_w; ++px) {
             on = 0;
-            if (data && py < ce->ce_height && px < ce->ce_width) {
-                if (ce->ce_bpl == 2) {
+            if (data) {
+                if (py >= ce->ce_height || px >= ce->ce_width)
+                    ;
+                else if (ce->ce_bpl == 2) {
                     rowdata = (unsigned char *)zz9k_console_font +
                         ce->ce_data + (py * ce->ce_bpl);
                     rowbits = ((unsigned short)rowdata[0] << 8) |
                         rowdata[1];
-                    on = rowbits & (1 << (ce->ce_width - 1 - px));
-                } else {
+                    if (ce->ce_width <= 16)
+                        on = rowbits & (1 << (ce->ce_width - 1 - px));
+                } else if (px < (ce->ce_bpl << 3)) {
                     bits = data[(py * ce->ce_bpl) + (px >> 3)];
                     on = bits & (0x80 >> (px & 7));
                 }
-            } else if (!data && py < ZZ9K_FALLBACK_FONT_H &&
+            } else if (py < ZZ9K_FALLBACK_FONT_H &&
                 px < ZZ9K_FALLBACK_FONT_W) {
                 on = bits & (0x10 >> px);
             }
@@ -1799,8 +1804,11 @@ struct zz9k_board *bp;
 
     zz9k_console_bp = bp;
     zz9k_console_font = builtinfont[0];
+    /* a font the renderer can draw: rows of at most 16 pixels, 1 to 32 rows */
     if (!zz9k_console_font ||
-        zz9k_console_font->f_magic != ZZ9K_FONT_MAGIC) {
+        zz9k_console_font->f_magic != ZZ9K_FONT_MAGIC ||
+        zz9k_console_font->f_height == 0 || zz9k_console_font->f_height > 32 ||
+        zz9k_console_font->f_ctable['M'].ce_move > 15) {
         zz9k_console_font = (struct zz9k_font *)0;
         zz9k_console_font_w = ZZ9K_FALLBACK_FONT_W;
         zz9k_console_font_h = ZZ9K_FALLBACK_FONT_H;
