@@ -446,6 +446,129 @@ t_console_guard()
     EQ(cwrite("ab"), 0, "a write is passed on when off");
 }
 
+/* the console cell (row, col) on the screen shown matches the fallback glyph of c */
+static int
+cell_is(row, col, c)
+int row, col;
+int c;
+{
+    unsigned short *p;
+    int px, py, on;
+
+    for (py = 0; py < zz9k_console_font_h; ++py) {
+        p = (unsigned short *)zz9k_console_bp->fb +
+            (unsigned long)(zz9k_con_top + row * zz9k_console_font_h + py) * zz9k_con_w +
+            col * zz9k_console_font_w;
+        for (px = 0; px < zz9k_console_font_w; ++px) {
+            on = px < ZZ9K_FALLBACK_FONT_W && (zz9k_glyph((unsigned char)c, py) & (0x10 >> px));
+            if (p[px] != (on ? ZZ9K_FG : ZZ9K_BG))
+                return 0;
+        }
+    }
+    return 1;
+}
+
+static void
+t_console_scroll()
+{
+    char line[16];
+    int i, bad, rebases, lasttop, stride;
+
+    zz9k_blit_on = 0;           /* registers draw nothing here: check the CPU paths */
+    EQ(iocv(ZZ9KIOC_CONSOLE, ZZ9K_CONSOLE_ENABLE, RW, &kroot), 0, "console on");
+    stride = zz9k_con_w * 2;
+#ifdef ZZ9K_TARGET_Z3660
+    EQ(zz9k_con_ringh, 2 * zz9k_con_h + zz9k_console_font_h, "a pan ring on the Z3660");
+#else
+    EQ(zz9k_con_ringh, zz9k_con_h, "no pan room in the ZZ9000's Zorro II window");
+#endif
+    for (i = 0; i < zz9k_console_rows; ++i)
+        cwrite("\n");          /* the cursor on the last row: every line scrolls from here */
+    bad = 0;
+    rebases = 0;
+    lasttop = zz9k_con_top;
+    for (i = 0; i < 400; ++i) {
+        sprintf(line, "L%03d\n", i);
+        cwrite(line);
+        if (zz9k_con_top < lasttop)
+            ++rebases;
+        lasttop = zz9k_con_top;
+#ifdef ZZ9K_TARGET_Z3660
+        if (*reg32(ZZ9K_Z3660_REG_PAN) != (unsigned int)(zz9k_con_top * stride))
+            ++bad;
+        if (*reg32(ZZ9K_Z3660_REG_X2) != (unsigned int)zz9k_con_w)
+            ++bad;
+#endif
+        if (i < 2)
+            continue;
+        sprintf(line, "L%03d", i);
+        if (!cell_is(zz9k_console_rows - 2, 0, 'L') || !cell_is(zz9k_console_rows - 2, 3, line[3]))
+            ++bad;
+        sprintf(line, "L%03d", i - 1);
+        if (!cell_is(zz9k_console_rows - 3, 2, line[2]) || !cell_is(zz9k_console_rows - 3, 3, line[3]))
+            ++bad;
+        if (!cell_is(zz9k_console_rows - 1, 1, ' ') || !cell_is(zz9k_console_rows - 1, 7, ' '))
+            ++bad;
+    }
+    EQ(bad, 0, "400 lines: the last two lines and a clean bottom row after every scroll");
+    zz9k_blit_inuse = 1;        /* as if the write interrupted a blitter operation */
+    lasttop = zz9k_con_top;
+    cwrite("Mxy\n");
+    EQ(zz9k_con_top, lasttop, "no pan while the blitter registers are in use");
+    CHECK(cell_is(zz9k_console_rows - 2, 0, 'M') && cell_is(zz9k_console_rows - 3, 0, 'L'),
+        "the copy scroll in place");
+    zz9k_blit_inuse = 0;
+#ifdef ZZ9K_TARGET_Z3660
+    {
+        struct zz9k_pan pan;
+
+        pan.offset = 4096;
+        *reg32(ZZ9K_Z3660_REG_X1) = 77;
+        *reg32(ZZ9K_Z3660_REG_Y1) = 5;
+        EQ(ioc(ZZ9KIOC_SETPAN, 64, &pan, sizeof pan, RW, &kuser), 0, "SETPAN");
+        EQ(*reg32(ZZ9K_Z3660_REG_PAN), 4096, "PAN written");
+        CHECK(*reg32(ZZ9K_Z3660_REG_X1) == 0 && *reg32(ZZ9K_Z3660_REG_Y1) == 0 &&
+            *reg32(ZZ9K_Z3660_REG_X2) == (unsigned int)zz9k_boards[0].width,
+            "X1, Y1 and X2 set first, so the firmware adds nothing");
+    }
+#endif
+    zz9k_blit_on = 1;
+    for (i = 0; i < 300; ++i)
+        cwrite("blitter path\n");    /* the blitter paths run (they draw nothing here) */
+    EQ(zz9k_blit_inuse, 0, "the in-use count returns to 0");
+#ifdef ZZ9K_TARGET_Z3660
+    CHECK(rebases >= 2, "the ring went round at least twice");
+#endif
+    EQ(iocv(ZZ9KIOC_CONSOLE, ZZ9K_CONSOLE_DISABLE, RW, &kroot), 0, "console off");
+    zz9k_blit_on = 1;
+}
+
+static void
+t_cpu_loops()
+{
+    static unsigned short buf[64];
+    int i, bad;
+
+    for (i = 0; i < 64; ++i)
+        buf[i] = 0x1111;
+    zz9k_fill16(buf + 1, 9L, 0xabcd);
+    bad = buf[0] != 0x1111 || buf[10] != 0x1111;
+    for (i = 1; i < 10; ++i)
+        bad += buf[i] != 0xabcd;
+    EQ(bad, 0, "fill16 from an odd pixel");
+    for (i = 0; i < 64; ++i)
+        buf[i] = (unsigned short)i;
+    zz9k_copy16(buf + 20, buf + 31, 10L);        /* different alignment */
+    zz9k_copy16(buf + 40, buf + 2, 7L);          /* same alignment */
+    bad = 0;
+    for (i = 0; i < 10; ++i)
+        bad += buf[20 + i] != 31 + i;
+    for (i = 0; i < 7; ++i)
+        bad += buf[40 + i] != 2 + i;
+    bad += buf[19] != 19 || buf[30] != 30 || buf[47] != 47;
+    EQ(bad, 0, "copy16 with either alignment");
+}
+
 static void
 t_rect()
 {
@@ -512,6 +635,8 @@ char **argv;
     t_band();
     t_blits();
     t_console_guard();
+    t_console_scroll();
+    t_cpu_loops();
     t_rect();
     printf("%s: %d passed, %d failed\n", ZZ9K_HOST_CONFIG, npass, nfail);
     return nfail != 0;

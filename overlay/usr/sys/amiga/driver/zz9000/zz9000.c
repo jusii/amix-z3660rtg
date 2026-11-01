@@ -153,6 +153,14 @@ struct zz9k_board {
  */
 #define ZZ9K_BLIT_FORGET(bp)   ((bp)->blitvalid = 0)
 
+/*
+ * Nonzero while a blitter operation, a pan or a mode set is writing the blitter registers.
+ * The console can be written from an interrupt taken between two of those writes; it then
+ * stays off the blitter registers (CPU drawing, no pan) so the operation below it is not
+ * corrupted, and when it does use them it empties the cache after.
+ */
+static int zz9k_blit_inuse;
+
 static struct zz9k_board zz9k_boards[ZZ9K_MAXBOARDS];
 
 static unsigned short zz9k_mode_id();
@@ -925,6 +933,55 @@ int sx, sy, dx, dy, w, h;
     zz9k_wr(bp, ZZ9K_R_COPYRECT, 1);
 }
 
+/*
+ * CPU fill and copy of 16-bit pixels with 32-bit stores where the alignment allows: every
+ * access to the board is a bus cycle, so half as many of them is close to twice as fast.
+ */
+static void
+zz9k_fill16(p, n, c)
+unsigned short *p;
+long n;
+unsigned short c;
+{
+    unsigned long *q, v;
+
+    if (n > 0 && ((unsigned long)p & 2)) {
+        *p++ = c;
+        --n;
+    }
+    q = (unsigned long *)p;
+    v = ((unsigned long)c << 16) | c;
+    for (; n >= 2; n -= 2)
+        *q++ = v;
+    if (n > 0)
+        *(unsigned short *)q = c;
+}
+
+/* forward: dst below src, or the two apart */
+static void
+zz9k_copy16(d, s, n)
+unsigned short *d, *s;
+long n;
+{
+    unsigned long *qd, *qs;
+
+    if (((unsigned long)d ^ (unsigned long)s) & 2) {
+        while (n-- > 0)
+            *d++ = *s++;
+        return;
+    }
+    if (n > 0 && ((unsigned long)d & 2)) {
+        *d++ = *s++;
+        --n;
+    }
+    qd = (unsigned long *)d;
+    qs = (unsigned long *)s;
+    for (; n >= 2; n -= 2)
+        *qd++ = *qs++;
+    if (n > 0)
+        *(unsigned short *)qd = *(unsigned short *)qs;
+}
+
 static void
 zz9k_cpu_fillrect(bp, x, y, w, h, color)
 struct zz9k_board *bp;
@@ -932,18 +989,14 @@ int x, y, w, h;
 unsigned short color;
 {
     unsigned short *fb;
-    unsigned short *p;
-    int xx, yy;
+    int yy;
 
     if (!bp || !bp->base || w <= 0 || h <= 0)
         return;
 
     fb = (unsigned short *)bp->fb;
-    for (yy = y; yy < y + h; ++yy) {
-        p = fb + ((unsigned long)yy * bp->width) + x;
-        for (xx = 0; xx < w; ++xx)
-            *p++ = color;
-    }
+    for (yy = y; yy < y + h; ++yy)
+        zz9k_fill16(fb + ((unsigned long)yy * bp->width) + x, (long)w, color);
 }
 
 static void
@@ -956,7 +1009,6 @@ int sx, sy, dx, dy, w, h;
     unsigned short *dst;
     int row, col;
     int row_start, row_end, row_step;
-    int col_start, col_end, col_step;
 
     if (!bp || !bp->base || w <= 0 || h <= 0)
         return;
@@ -973,21 +1025,14 @@ int sx, sy, dx, dy, w, h;
         row_step = 1;
     }
 
-    if (dy == sy && dx > sx) {
-        col_start = w - 1;
-        col_end = -1;
-        col_step = -1;
-    } else {
-        col_start = 0;
-        col_end = w;
-        col_step = 1;
-    }
-
     for (row = row_start; row != row_end; row += row_step) {
         src = fb + ((unsigned long)(sy + row) * bp->width) + sx;
         dst = fb + ((unsigned long)(dy + row) * bp->width) + dx;
-        for (col = col_start; col != col_end; col += col_step)
-            dst[col] = src[col];
+        if (dy == sy && dx > sx) {
+            for (col = w - 1; col >= 0; --col)  /* along one row, rightwards */
+                dst[col] = src[col];
+        } else
+            zz9k_copy16(dst, src, (long)w);
     }
 }
 
@@ -1044,21 +1089,44 @@ unsigned short color;
 {
     int band, top, n;
 
+    ++zz9k_blit_inuse;
     band = zz9k_band(w, h);
     if (sx >= 0 && dy > sy) {
         for (top = h; top > 0; top -= n) {
             n = (top < band) ? top : band;
             zz9k_blit_copy(bp, sx, sy + top - n, dx, dy + top - n, w, n);
         }
-        return;
+    } else {
+        for (top = 0; top < h; top += n) {
+            n = (h - top < band) ? h - top : band;
+            if (sx < 0)
+                zz9k_blit_fill(bp, dx, dy + top, w, n, color);
+            else
+                zz9k_blit_copy(bp, sx, sy + top, dx, dy + top, w, n);
+        }
     }
-    for (top = 0; top < h; top += n) {
-        n = (h - top < band) ? h - top : band;
-        if (sx < 0)
-            zz9k_blit_fill(bp, dx, dy + top, w, n, color);
-        else
-            zz9k_blit_copy(bp, sx, sy + top, dx, dy + top, w, n);
-    }
+    --zz9k_blit_inuse;
+}
+
+/*
+ * PAN as a framebuffer byte offset.  The firmware adds X1 pixels and Y1 rows of X2 pixels
+ * to the value written and takes X2 as the displayed row length (rtg.c REG_ZZ_PAN, as the
+ * ZZ9000's), so those are set first: 0, 0 and the mode's width, with COLORMODE for the
+ * pixel size.  Through the blitter cache, which then holds them for the next blit.
+ */
+static void
+zz9k_set_pan(bp, off)
+struct zz9k_board *bp;
+unsigned long off;
+{
+    ++zz9k_blit_inuse;
+    ZZ9K_BLIT_FORGET(bp);
+    zz9k_bwr(bp, ZZ9K_R_X1, 0);
+    zz9k_bwr(bp, ZZ9K_R_Y1, 0);
+    zz9k_bwr(bp, ZZ9K_R_X2, (unsigned long)bp->width);
+    zz9k_bwr(bp, ZZ9K_R_COLORMODE, (unsigned long)(bp->color_mode | (0xff << 8)));
+    zz9k_wr32(bp, ZZ9K_R_PAN, off);
+    --zz9k_blit_inuse;
 }
 
 static void
@@ -1068,6 +1136,7 @@ unsigned short mode;
 unsigned short color_mode;
 unsigned short scale_mode;
 {
+    ++zz9k_blit_inuse;
     zz9k_wr(bp, ZZ9K_R_CAPTURE, 0);
     zz9k_wr(bp, ZZ9K_R_X1, 0);
     zz9k_wr(bp, ZZ9K_R_Y1, 0);
@@ -1083,6 +1152,7 @@ unsigned short scale_mode;
     bp->mode = mode;
     bp->color_mode = color_mode;
     ZZ9K_BLIT_FORGET(bp);
+    --zz9k_blit_inuse;
 }
 
 static void
@@ -1226,13 +1296,32 @@ zz9k_console_clear()
         zz9k_console_bg);
 }
 
+/*
+ * The console's screen is con_h rows from framebuffer row zz9k_con_top.  With room for
+ * 2 * con_h + font_h rows the console pans instead of copying: a scroll moves the top
+ * down one text row (a PAN write) and clears the rows that come into view, and when the
+ * ring runs out it copies the screen back to row 0 -- out of sight, once every con_h /
+ * font_h lines.  Without the room (the ZZ9000's Zorro II window) it copies every time.
+ */
+static int zz9k_con_top;
+static int zz9k_con_ringh;
+
+#define ZZ9K_CON_PIX(x, y) ((unsigned short *)zz9k_console_bp->fb + \
+    ((unsigned long)(zz9k_con_top + (y)) * zz9k_con_w + (x)))
+
+/* the console may use the blitter registers now */
+static int
+zz9k_con_blit_ok()
+{
+    return !zz9k_blit_inuse && zz9k_can_blit(zz9k_console_bp);
+}
+
 static void
 zz9k_console_fill_rect(x, y, w, h, color)
 int x, y, w, h;
 unsigned short color;
 {
-    unsigned short *p;
-    int px, py;
+    int py;
 
     if (!zz9k_console_bp || !zz9k_console_bp->base)
         return;
@@ -1251,27 +1340,59 @@ unsigned short color;
     if (y + h > zz9k_con_h)
         h = zz9k_con_h - y;
 
-    for (py = 0; py < h; ++py) {
-        p = (unsigned short *)(zz9k_console_bp->fb +
-            ((unsigned long)(y + py) * zz9k_con_w + x) * 2);
-        for (px = 0; px < w; ++px)
-            *p++ = color;
+    if (zz9k_con_blit_ok()) {
+        ZZ9K_BLIT_FORGET(zz9k_console_bp);
+        zz9k_blit_run(zz9k_console_bp, -1, 0, x, zz9k_con_top + y, w, h, color);
+        ZZ9K_BLIT_FORGET(zz9k_console_bp);
+        return;
     }
+    for (py = 0; py < h; ++py)
+        zz9k_fill16(ZZ9K_CON_PIX(x, y + py), (long)w, color);
+}
+
+/* n whole framebuffer rows from row src up to row dst (dst < src) */
+static void
+zz9k_con_rows_up(src, dst, n)
+int src, dst, n;
+{
+    unsigned short *fb;
+    int i;
+
+    if (n <= 0)
+        return;
+    if (zz9k_con_blit_ok()) {
+        ZZ9K_BLIT_FORGET(zz9k_console_bp);
+        zz9k_blit_run(zz9k_console_bp, 0, src, 0, dst, zz9k_con_w, n, 0);
+        ZZ9K_BLIT_FORGET(zz9k_console_bp);
+        return;
+    }
+    fb = (unsigned short *)zz9k_console_bp->fb;
+    for (i = 0; i < n; ++i)
+        zz9k_copy16(fb + (unsigned long)(dst + i) * zz9k_con_w,
+            fb + (unsigned long)(src + i) * zz9k_con_w, (long)zz9k_con_w);
 }
 
 static void
 zz9k_console_scroll()
 {
-    unsigned short *dst, *src;
-    unsigned long n;
+    int fh, keep;
 
-    dst = (unsigned short *)zz9k_console_bp->fb;
-    src = dst + (zz9k_con_w * zz9k_console_font_h);
-    n = (unsigned long)zz9k_con_w *
-        (zz9k_con_h - zz9k_console_font_h);
-    while (n--)
-        *dst++ = *src++;
-    zz9k_console_clear_line(zz9k_con_h - zz9k_console_font_h);
+    fh = zz9k_console_font_h;
+    keep = zz9k_con_h - fh;
+    if (zz9k_con_ringh > zz9k_con_h && !zz9k_blit_inuse) {
+        if (zz9k_con_top + zz9k_con_h + fh > zz9k_con_ringh) {
+            /* the window is past con_h: rows [0, con_h) are out of sight */
+            zz9k_con_rows_up(zz9k_con_top + fh, 0, keep);
+            zz9k_con_top = 0;
+        } else
+            zz9k_con_top += fh;
+        zz9k_console_clear_line(keep);          /* below the window still shown */
+        zz9k_set_pan(zz9k_console_bp, (unsigned long)zz9k_con_top * zz9k_con_w * 2);
+        return;
+    }
+    /* no pan room, or an interrupted blitter operation owns the registers */
+    zz9k_con_rows_up(zz9k_con_top + fh, zz9k_con_top, keep);
+    zz9k_console_clear_line(keep);
 }
 
 static void
@@ -1302,8 +1423,7 @@ unsigned char c;
 
     for (py = 0; py < zz9k_console_font_h; ++py) {
         bits = zz9k_glyph(c, py);
-        p = (unsigned short *)(zz9k_console_bp->fb +
-            ((unsigned long)(y + py) * zz9k_con_w + x) * 2);
+        p = ZZ9K_CON_PIX(x, y + py);
         for (px = 0; px < zz9k_console_font_w; ++px) {
             on = 0;
             if (data && py < ce->ce_height && px < ce->ce_width) {
@@ -1341,8 +1461,7 @@ int on;
     x = zz9k_console_col * zz9k_console_font_w;
     y = zz9k_console_row * zz9k_console_font_h;
     for (py = 0; py < zz9k_console_font_h; ++py) {
-        p = (unsigned short *)(zz9k_console_bp->fb +
-            ((unsigned long)(y + py) * zz9k_con_w + x) * 2);
+        p = ZZ9K_CON_PIX(x, y + py);
         for (px = 0; px < zz9k_console_font_w; ++px) {
             *p = *p ^ 0xffff;
             ++p;
@@ -1617,6 +1736,10 @@ struct zz9k_board *bp;
     }
     zz9k_console_cols = zz9k_con_w / zz9k_console_font_w;
     zz9k_console_rows = zz9k_con_h / zz9k_console_font_h;
+    zz9k_con_top = 0;
+    zz9k_con_ringh = zz9k_con_h;
+    if ((unsigned long)(2 * zz9k_con_h + zz9k_console_font_h) * zz9k_con_w * 2 <= bp->fb_size)
+        zz9k_con_ringh = 2 * zz9k_con_h + zz9k_console_font_h;
     zz9k_console_col = 0;
     zz9k_console_row = 0;
     zz9k_console_cursor_on = 0;
@@ -2352,7 +2475,7 @@ int *rvalp;
             return EFAULT;
         if (pan.offset >= bp->fb_size)
             return EINVAL;
-        zz9k_wr32(bp, ZZ9K_R_PAN, pan.offset);
+        zz9k_set_pan(bp, pan.offset);
         break;
 
     case ZZ9KIOC_SETSWITCH:
