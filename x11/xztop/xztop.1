@@ -1,0 +1,97 @@
+.\" Copyright (c) 2026 Jussi Alanärä.  SPDX-License-Identifier: MIT
+.TH XZTOP 1 "1 November 2026" "amix-z3660rtg" "User Commands"
+.SH NAME
+xztop \- the Z3660's temperatures and voltages in an X window
+.SH SYNOPSIS
+.B xztop
+[
+.B \-update
+.I seconds
+] [
+.B \-device
+.I file
+] [
+.I toolkit options
+]
+.SH DESCRIPTION
+.B xztop
+shows the measurements the Z3660 accelerator's firmware makes, the ones
+.BR ztop (1)
+prints, as small strip charts in the manner of
+.BR xload (1):
+the 68060, FPGA and board temperatures and the 5 V, 3.3 V and FPGA core
+voltages, each under a line with its latest value, and the CPU clock the
+preset sets at the top.
+A temperature chart draws a scale line every 10 degrees Celsius, a voltage
+chart one every volt.
+A measurement the firmware does not offer gets no chart.
+.PP
+The charts move every two seconds.
+Each reads the RTG driver's information node
+.IR /dev/zz9000i ,
+which any user may open (falling back to
+.IR /dev/zz9000 ),
+and the board is read at most once a second however many charts there are.
+.B xztop
+writes nothing to the board.
+.SH OPTIONS
+.TP
+.BI \-update " seconds"
+Move the charts every
+.I seconds
+(1 to 60; the default is 2).
+.TP
+.BI \-device " file"
+Read this device instead.
+.PP
+The X Toolkit options
+.RB ( \-display ,
+.BR \-geometry ,
+.BR \-fg ,
+.BR \-bg ,
+.B \-xrm
+and the rest) apply.
+.SH RESOURCES
+The class is
+.BR XZtop .
+.TP
+.B update
+as
+.BR \-update .
+.TP
+.B device
+as
+.BR \-device .
+.PP
+The labels are named
+.BR clock ,
+.BR cpu ,
+.BR fpga ,
+.BR board ,
+.BR v5 ,
+.B v3v3
+and
+.BR vcore ;
+each chart has its label's name.
+The StripChart resources
+.RB ( foreground ,
+.BR highlight ,
+.BR width ,
+.BR height )
+set the charts' look, for example
+.RS
+.nf
+XZtop*StripChart.height: 48
+XZtop*cpu.foreground: red
+.fi
+.RE
+.SH EXIT STATUS
+1 when the device cannot be opened, 2 for a usage error, 3 when the board
+offers no sensors (a ZZ9000, or Z3660 firmware without them).
+.SH FILES
+.TP
+.I /dev/zz9000i
+the RTG driver's information node (character 49, minor 128, mode 0444)
+.SH SEE ALSO
+.BR ztop (1),
+.BR xload (1)

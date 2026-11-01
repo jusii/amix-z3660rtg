@@ -44,6 +44,12 @@
   `m68k-cbm-sysv4-gcc -O -I<usr-amiga>/usr/amiga/include -o rtg-kbdback x11/rtg-kbdback.c -lscreen`
   (with `AMIX_SYSROOT` as for Xzz9000). It needs `/usr/amiga/lib/libscreen.so`, like the server.
   Install it as `/opt/amix/bin/rtg-kbdback`, next to `startx-rtg`.
+- `xztop/` — `xztop`, the Z3660's temperatures and voltages as Athena strip charts in the
+  manner of `xload` (`xztop.1`), from the driver's `ZZ9KIOC_SENSORS` through `/dev/zz9000i`.
+  It is built with gcc14-cross-amix against the x11r6.3 package's headers and static
+  libraries: `make -C x11/xztop XROOT=<that package's dest>/opt/amix/X11R6`. It ships in the
+  z3660rtg package beside `ztop`, so that package's recipe builds it with x11r6.3 as a build
+  dependency.
 - `KIT.sha256` — the X11KIT=rtg set of record: the server, rtg-kbdback, startx-rtg and
   xinitrc-rtg, as installed on the box (binaries and copies in `build/out/`).
 - `SERVERS.sha256` — the server builds of record: s8rt04 (the install media's server until replaced) and s14rt04 (the
