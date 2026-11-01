@@ -2458,19 +2458,23 @@ int *rvalp;
     unsigned long limit, lane;
     unsigned short id, bpp;
     struct zz9k_board *bp;
-    struct zz9k_info info;
-    struct zz9k_fbinfo fbi;
-    struct zz9k_mode sm;
-    struct zz9k_pan pan;
-    struct zz9k_fill zf;
-    struct zz9k_fillrect fr;
-    struct zz9k_copyrect crct;
-    struct zz9k_reg zr;
-    struct zz9k_autocon_dump dump;
-    struct zz9k_conputs cp;
-    char cbuf[128];
     unsigned long n;
-    int i;
+    /* one command's argument at a time: about 330 bytes of stack instead of 650 */
+    union {
+        struct zz9k_info info;
+        struct zz9k_fbinfo fbi;
+        struct zz9k_mode sm;
+        struct zz9k_pan pan;
+        struct zz9k_fill zf;
+        struct zz9k_fillrect fr;
+        struct zz9k_copyrect crct;
+        struct zz9k_reg zr;
+        struct zz9k_autocon_dump dump;
+        struct {
+            struct zz9k_conputs cp;
+            char cbuf[128];
+        } c;
+    } u;
 
     unit = getminor(dev);
     if (unit >= ZZ9K_MAXBOARDS)
@@ -2505,8 +2509,8 @@ int *rvalp;
 
     switch (cmd) {
     case ZZ9KIOC_GETAUTOCON:
-        zz9k_fill_autocon(&dump);
-        if (copyout((caddr_t)&dump, (caddr_t)arg, sizeof dump))
+        zz9k_fill_autocon(&u.dump);
+        if (copyout((caddr_t)&u.dump, (caddr_t)arg, sizeof u.dump))
             return EFAULT;
         return 0;
 
@@ -2521,53 +2525,53 @@ int *rvalp;
 
     switch (cmd) {
     case ZZ9KIOC_GETINFO:
-        info.base = (unsigned long)bp->base;
-        info.board_size = bp->board_size;
-        info.fb_offset = bp->bt->fb_offset;
-        info.fb_size = bp->fb_size;
-        info.hw_version = bp->hw_version;
-        info.fw_version = bp->fw_version;
-        info.product = bp->bt->product;
-        info.zorro = bp->bt->zorro;
-        info.width = bp->width;
-        info.height = bp->height;
-        info.color_mode = bp->color_mode;
-        info.mode = bp->mode;
-        if (copyout((caddr_t)&info, (caddr_t)arg, sizeof info))
+        u.info.base = (unsigned long)bp->base;
+        u.info.board_size = bp->board_size;
+        u.info.fb_offset = bp->bt->fb_offset;
+        u.info.fb_size = bp->fb_size;
+        u.info.hw_version = bp->hw_version;
+        u.info.fw_version = bp->fw_version;
+        u.info.product = bp->bt->product;
+        u.info.zorro = bp->bt->zorro;
+        u.info.width = bp->width;
+        u.info.height = bp->height;
+        u.info.color_mode = bp->color_mode;
+        u.info.mode = bp->mode;
+        if (copyout((caddr_t)&u.info, (caddr_t)arg, sizeof u.info))
             return EFAULT;
         break;
 
     case ZZ9KIOC_GETFBINFO:
-        zz9k_fill_fbinfo(bp, &fbi);
-        if (copyout((caddr_t)&fbi, (caddr_t)arg, sizeof fbi))
+        zz9k_fill_fbinfo(bp, &u.fbi);
+        if (copyout((caddr_t)&u.fbi, (caddr_t)arg, sizeof u.fbi))
             return EFAULT;
         break;
 
     case ZZ9KIOC_SETMODE:
-        if (copyin((caddr_t)arg, (caddr_t)&sm, sizeof sm))
+        if (copyin((caddr_t)arg, (caddr_t)&u.sm, sizeof u.sm))
             return EFAULT;
-        id = zz9k_mode_id(bp, sm.width, sm.height);
-        bpp = zz9k_bpp(sm.color_mode);
-        if (id == ZZ9K_NOMODE || bpp == 0 || sm.scale_mode > ZZ9K_SCALE_MAX)
+        id = zz9k_mode_id(bp, u.sm.width, u.sm.height);
+        bpp = zz9k_bpp(u.sm.color_mode);
+        if (id == ZZ9K_NOMODE || bpp == 0 || u.sm.scale_mode > ZZ9K_SCALE_MAX)
             return EINVAL;
-        if ((unsigned long)sm.width * sm.height * bpp > bp->fb_size)
+        if ((unsigned long)u.sm.width * u.sm.height * bpp > bp->fb_size)
             return ENOMEM;
         if (zz9k_console_on && zz9k_console_bp == bp && zz9k_con_hold()) {
             zz9k_console_cursor(0);
             zz9k_console_paused = 1;
             zz9k_con_unhold();
         }
-        zz9k_set_mode_hw(bp, id, sm.color_mode, sm.scale_mode);
-        bp->width = sm.width;
-        bp->height = sm.height;
+        zz9k_set_mode_hw(bp, id, u.sm.color_mode, u.sm.scale_mode);
+        bp->width = u.sm.width;
+        bp->height = u.sm.height;
         break;
 
     case ZZ9KIOC_SETPAN:
-        if (copyin((caddr_t)arg, (caddr_t)&pan, sizeof pan))
+        if (copyin((caddr_t)arg, (caddr_t)&u.pan, sizeof u.pan))
             return EFAULT;
-        if (pan.offset >= bp->fb_size)
+        if (u.pan.offset >= bp->fb_size)
             return EINVAL;
-        zz9k_set_pan(bp, pan.offset);
+        zz9k_set_pan(bp, u.pan.offset);
         break;
 
     case ZZ9KIOC_SETSWITCH:
@@ -2577,60 +2581,60 @@ int *rvalp;
         break;
 
     case ZZ9KIOC_FILL:
-        if (copyin((caddr_t)arg, (caddr_t)&zf, sizeof zf))
+        if (copyin((caddr_t)arg, (caddr_t)&u.zf, sizeof u.zf))
             return EFAULT;
-        if (zf.bytes == 0) {
+        if (u.zf.bytes == 0) {
             *rvalp = 0;
             break;
         }
-        if (zf.offset >= bp->fb_size)
+        if (u.zf.offset >= bp->fb_size)
             return EINVAL;
-        limit = bp->fb_size - zf.offset;
-        if (limit > zf.bytes)
-            limit = zf.bytes;
+        limit = bp->fb_size - u.zf.offset;
+        if (limit > u.zf.bytes)
+            limit = u.zf.bytes;
         if (limit > ZZ9K_FILL_MAX)
             limit = ZZ9K_FILL_MAX;
-        zz9k_fill8((unsigned char *)bp->fb + zf.offset, limit, (unsigned char)zf.value);
+        zz9k_fill8((unsigned char *)bp->fb + u.zf.offset, limit, (unsigned char)u.zf.value);
         *rvalp = (int)limit;
         break;
 
     case ZZ9KIOC_FILLRECT:
-        if (copyin((caddr_t)arg, (caddr_t)&fr, sizeof fr))
+        if (copyin((caddr_t)arg, (caddr_t)&u.fr, sizeof u.fr))
             return EFAULT;
-        if (fr.width == 0 || fr.height == 0)
+        if (u.fr.width == 0 || u.fr.height == 0)
             break;
-        if (fr.x >= bp->width || fr.y >= bp->height)
+        if (u.fr.x >= bp->width || u.fr.y >= bp->height)
             return EINVAL;
-        if ((unsigned long)fr.x + fr.width > bp->width)
+        if ((unsigned long)u.fr.x + u.fr.width > bp->width)
             return EINVAL;
-        if ((unsigned long)fr.y + fr.height > bp->height)
+        if ((unsigned long)u.fr.y + u.fr.height > bp->height)
             return EINVAL;
         if (bp->color_mode != ZZ9K_COLOR_16BIT565)
             return EINVAL;
-        zz9k_fillrect(bp, fr.x, fr.y, fr.width, fr.height,
-            (unsigned short)fr.color);
+        zz9k_fillrect(bp, u.fr.x, u.fr.y, u.fr.width, u.fr.height,
+            (unsigned short)u.fr.color);
         break;
 
     case ZZ9KIOC_COPYRECT:
-        if (copyin((caddr_t)arg, (caddr_t)&crct, sizeof crct))
+        if (copyin((caddr_t)arg, (caddr_t)&u.crct, sizeof u.crct))
             return EFAULT;
-        if (crct.width == 0 || crct.height == 0)
+        if (u.crct.width == 0 || u.crct.height == 0)
             break;
-        if (crct.src_x >= bp->width || crct.src_y >= bp->height ||
-            crct.dst_x >= bp->width || crct.dst_y >= bp->height)
+        if (u.crct.src_x >= bp->width || u.crct.src_y >= bp->height ||
+            u.crct.dst_x >= bp->width || u.crct.dst_y >= bp->height)
             return EINVAL;
-        if ((unsigned long)crct.src_x + crct.width > bp->width)
+        if ((unsigned long)u.crct.src_x + u.crct.width > bp->width)
             return EINVAL;
-        if ((unsigned long)crct.src_y + crct.height > bp->height)
+        if ((unsigned long)u.crct.src_y + u.crct.height > bp->height)
             return EINVAL;
-        if ((unsigned long)crct.dst_x + crct.width > bp->width)
+        if ((unsigned long)u.crct.dst_x + u.crct.width > bp->width)
             return EINVAL;
-        if ((unsigned long)crct.dst_y + crct.height > bp->height)
+        if ((unsigned long)u.crct.dst_y + u.crct.height > bp->height)
             return EINVAL;
         if (bp->color_mode != ZZ9K_COLOR_16BIT565)
             return EINVAL;
-        zz9k_copyrect(bp, crct.src_x, crct.src_y, crct.dst_x,
-            crct.dst_y, crct.width, crct.height);
+        zz9k_copyrect(bp, u.crct.src_x, u.crct.src_y, u.crct.dst_x,
+            u.crct.dst_y, u.crct.width, u.crct.height);
         break;
 
     /*
@@ -2644,36 +2648,36 @@ int *rvalp;
      * cache, since a poke may change a register the cache holds.
      */
     case ZZ9KIOC_GETREG:
-        if (copyin((caddr_t)arg, (caddr_t)&zr, sizeof zr))
+        if (copyin((caddr_t)arg, (caddr_t)&u.zr, sizeof u.zr))
             return EFAULT;
-        if (!zz9k_reg_allowed(bp, zr.offset, 0))
+        if (!zz9k_reg_allowed(bp, u.zr.offset, 0))
             return EINVAL;
         if (bp->bt->regw == 4) {
             lane = *((volatile unsigned long *)((char *)bp->base +
-                (zr.offset & ~3)));
-            zr.value = (unsigned short)((zr.offset & 2) ? lane : lane >> 16);
+                (u.zr.offset & ~3)));
+            u.zr.value = (unsigned short)((u.zr.offset & 2) ? lane : lane >> 16);
         } else
-            zr.value = ZZ9K_REG(bp->base, zr.offset);
-        if (copyout((caddr_t)&zr, (caddr_t)arg, sizeof zr))
+            u.zr.value = ZZ9K_REG(bp->base, u.zr.offset);
+        if (copyout((caddr_t)&u.zr, (caddr_t)arg, sizeof u.zr))
             return EFAULT;
         break;
 
     case ZZ9KIOC_SETREG:
-        if (copyin((caddr_t)arg, (caddr_t)&zr, sizeof zr))
+        if (copyin((caddr_t)arg, (caddr_t)&u.zr, sizeof u.zr))
             return EFAULT;
-        if (!zz9k_reg_allowed(bp, zr.offset, 1))
+        if (!zz9k_reg_allowed(bp, u.zr.offset, 1))
             return EINVAL;
         ZZ9K_BLIT_FORGET(bp);           /* the poke may change what the cache holds */
         if (bp->bt->regw == 4) {
-            if (zr.offset & 2) {
-                lane = ((unsigned long)bp->reg_hi << 16) | zr.value;
+            if (u.zr.offset & 2) {
+                lane = ((unsigned long)bp->reg_hi << 16) | u.zr.value;
                 *((volatile unsigned long *)((char *)bp->base +
-                    (zr.offset & ~3))) = lane;
+                    (u.zr.offset & ~3))) = lane;
                 bp->reg_hi = 0;
             } else
-                bp->reg_hi = zr.value;
+                bp->reg_hi = u.zr.value;
         } else
-            ZZ9K_REG(bp->base, zr.offset) = zr.value;
+            ZZ9K_REG(bp->base, u.zr.offset) = u.zr.value;
         break;
 
     /*
@@ -2682,19 +2686,19 @@ int *rvalp;
      * the RTG screen without the console driver hook.
      */
     case ZZ9KIOC_CONPUTS:
-        if (copyin((caddr_t)arg, (caddr_t)&cp, sizeof cp))
+        if (copyin((caddr_t)arg, (caddr_t)&u.c.cp, sizeof u.c.cp))
             return EFAULT;
         if (!zz9k_console_on || zz9k_console_bp != bp)
             return ENXIO;
         if (zz9k_console_paused)
             return EBUSY;
-        while (cp.len) {
-            n = cp.len > sizeof cbuf ? sizeof cbuf : cp.len;
-            if (copyin((caddr_t)cp.buf, (caddr_t)cbuf, n))
+        while (u.c.cp.len) {
+            n = u.c.cp.len > sizeof u.c.cbuf ? sizeof u.c.cbuf : u.c.cp.len;
+            if (copyin((caddr_t)u.c.cp.buf, (caddr_t)u.c.cbuf, n))
                 return EFAULT;
-            zz9k_con_write((unsigned char *)cbuf, (unsigned)n);
-            cp.buf += n;
-            cp.len -= n;
+            zz9k_con_write((unsigned char *)u.c.cbuf, (unsigned)n);
+            u.c.cp.buf += n;
+            u.c.cp.len -= n;
         }
         break;
 
