@@ -687,11 +687,24 @@ t_fixed()
 #ifdef ZZ9K_TARGET_Z3660
     struct zz9k_board *bp = &zz9k_boards[0];
 
+    /* a ZZ9000 configured as Zorro III in the list as well: refused, the next row tries */
+    kboards[1].pc = ZZ9K_PRODUCT_PC_Z3;
+    kboards[1].base = 0x40000000L;
+    kboards[1].size = 0x01000000L;
+    bp->base = 0;
+    EQ(zz9k_probe(0), 1, "a refused row no longer ends the probe");
+    CHECK(bp->bt && bp->bt->autocon_pc == ZZ9K_Z3660_PRODUCT_PC, "the Z3660 found after it");
+    kboards[1].pc = 0;
+
     kboards[0].pc = 0;          /* a machine whose AutoConfig list lacks the board */
     bp->base = 0;
     zz9k_fixed_on = 0;
     EQ(zz9k_probe(0), 0, "no fixed-base probe by default");
     zz9k_fixed_on = 1;
+    klogn = 0;
+    EQ(zz9k_probe(0), 0, "a failed probe is remembered");
+    EQ(klogn, 0, "and says nothing the second time");
+    zz9k_noboard[0] = 0;
     EQ(zz9k_probe(0), 1, "the fixed row when asked");
     CHECK(bp->bt && bp->bt->autocon_pc == 0, "attached by the fixed row");
     *(volatile unsigned short *)0xdff004UL = 0x0000;     /* OCS Agnus */

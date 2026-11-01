@@ -130,7 +130,6 @@ struct zz9k_board {
     unsigned short width;
     unsigned short height;
     unsigned short color_mode;
-    unsigned short open_count;
     unsigned short reg_hi;        /* SETREG HI-lane latch on a 32-bit row */
     short monsw_handle;           /* monsw registration, -1 = none (RT-04) */
     short svga_switch;            /* last SVGAIOCSetMonitorSwitch: 1 Amiga, 2 SVGA */
@@ -164,6 +163,7 @@ struct zz9k_board {
 static int zz9k_blit_inuse;
 
 static struct zz9k_board zz9k_boards[ZZ9K_MAXBOARDS];
+static char zz9k_noboard[ZZ9K_MAXBOARDS];      /* a probe found nothing */
 
 static unsigned short zz9k_mode_id();
 static unsigned short zz9k_bpp();
@@ -754,6 +754,8 @@ int unit;
     bp = &zz9k_boards[unit];
     if (bp->base)
         return 1;
+    if (zz9k_noboard[unit])             /* boards do not appear later: no second walk */
+        return 0;
 
     for (i = 0; i < ZZ9K_NBOARDTAB; ++i) {
         bt = &zz9k_boardtab[i];
@@ -764,7 +766,7 @@ int unit;
                 printf("zz9000: %s at 0x%x size 0x%x unsupported\n",
                     bt->name, (unsigned int)base, (unsigned int)size);
                 printf("zz9000: %s\n", bt->advice);
-                return 0;
+                continue;               /* another row may still find a board */
             }
             printf("zz9000: autocon match pc 0x%x base 0x%x size 0x%x\n",
                 (unsigned int)bt->autocon_pc, (unsigned int)base,
@@ -796,8 +798,8 @@ int unit;
         /* attach() said what it saw; a later row may still find it */
     }
 
-    printf("zz9000: autocon did not find manufacturer 0x%x product %d\n",
-        ZZ9K_MNT_MANUFACTURER, ZZ9K_PRODUCT_Z2);
+    printf("zz9000: no supported board found\n");
+    zz9k_noboard[unit] = 1;
     return 0;
 }
 
@@ -2120,7 +2122,6 @@ struct cred *cr;
     unit = getminor(*devp);
     if (unit >= ZZ9K_MAXBOARDS)
         return ENXIO;
-    ++zz9k_boards[unit].open_count;
     return 0;
 }
 
@@ -2134,8 +2135,6 @@ struct cred *cr;
     int unit;
 
     unit = getminor(dev);
-    if (unit < ZZ9K_MAXBOARDS && zz9k_boards[unit].open_count)
-        --zz9k_boards[unit].open_count;
     /*
      * SVR4 calls close on the last close only, and the kernel closes a dying process's
      * descriptors, so a crashed or killed X server lands here too: back to native,
