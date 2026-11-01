@@ -20,7 +20,7 @@ binary is built), `docs/BENCH-X.md` (the bench proof, passed 2026-09-18, §4), `
 | `xinitrc-rtg` | `/.xinitrc-rtg` (root's home) | 755 root:root | `amix-z3660rtg/x11/xinitrc-rtg` — the RTG session, so the machine's `/.xinitrc` stays the demo's own (§2) |
 | `rtg-mode` | `/opt/amix/bin/rtg-mode` | 755 root:root | kerntools' card wrapper (validates a mode name, calls `zz9k_mode`) — **not needed by `startx-rtg`**, which passes `-mode` to the server; keep it for the picture demos |
 | the driver tools | `/opt/amix/bin/zz9k_*`, `colorls` | 755 root:root | the driver's `tools/` built at 6358112. **The wrapper scripts (`zz9k_demo`, `zz9k_console`) locate `zz9k_test` themselves** — `$ZZ9K_TEST`, then their own directory, then `/usr/amiga/bin`, then `/opt/amix/bin` — so either convention works and no profile variable is required. (Before 2026-09-18 they hardcoded upstream's `/usr/amiga/bin` and failed on the card: metal session 2, row 4.) |
-| `/dev/zz9000` | char 49,0 | 666 (or 600) root:root | `mkdev.sh` |
+| `/dev/zz9000` | char 49,0 | 660 root:sys (666 before 2026-11-01: any user reached the registers) | `mkdev.sh` |
 
 **Nothing else is required.** The R6.3 server reads the box's existing X11R5 data:
 - **Fonts** — its bitmap font layer accepts `.snf` as well as `.pcf`
