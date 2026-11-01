@@ -11,6 +11,8 @@
 # /var/adm/Xzz9000.<display>.log, which only root writes, instead of a fixed
 # name in /tmp.  Run it as root: /dev/zz9000 is 0660 root:sys.
 #
+# Copyright (c) 2026 Jussi Alanärä.  SPDX-License-Identifier: MIT
+#
 # Environment: RTG_MODE, RTG_FONTPATH, RTG_RGB, RTG_SERVER_ARGS, RTG_SERVERLOG,
 # RTG_LD_LIBRARY_PATH (the server's own library path), RTG_MONSWITCH (a test
 # override of the monitor-switch value, below), ZZ9K_MONSW (the fallback tool),

@@ -15,6 +15,8 @@
 #   LOCALIZE_OBJCOPY  an objcopy newer than binutils 2.8.1 (gcc14-cross-amix's)
 # Master is generated from z3660rtg.keys; it has no $cpu, so the kit gives each line its
 # own (68030, 68040).
+#
+# Copyright (c) 2026 Jussi Alanärä.  SPDX-License-Identifier: MIT
 
 ifndef KIT
 $(error set KIT to a built ABI kit, e.g. ../../amix/kernel/dlm/build/kit/k46)

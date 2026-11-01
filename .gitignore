@@ -7,7 +7,7 @@ exp
 zz9k_test
 colorls
 
-# Untracked NetBSD reference material retained in C:\Storage\zz9000-amix.
+# NetBSD reference material some checkouts keep beside the driver
 /._ZZ9K_2023-04-01_359837.patch
 /Makefile
 /ZZ9K_2023-04-01_359837.patch

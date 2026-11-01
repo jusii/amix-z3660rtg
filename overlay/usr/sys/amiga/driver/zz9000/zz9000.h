@@ -1,8 +1,13 @@
 /*
- * zz9000.h - MNT ZZ9000 AMIX driver definitions.
+ * zz9000.h - MNT ZZ9000 / Z3660 RTG AMIX driver definitions: the ioctl ABI
+ * (shared with userland) and, below it, the kernel's board table.
  *
- * AMIX target: Zorro II only.  AMIX does not support Zorro III, so
- * this driver deliberately probes product 3 and leaves product 4 alone.
+ * Copyright (c) 2026 Ignacio Soriano.  The Z3660 target and later changes
+ * Copyright (c) 2026 Jussi Alanärä.  SPDX-License-Identifier: MIT
+ *
+ * The ZZ9000 is attached as Zorro II product 3; its Zorro III product 4 lies
+ * outside the kernel's identity map and is refused with advice.  The Z3660's
+ * RTG (-DZZ9K_TARGET_Z3660) is reached at its hard-mapped window.
  */
 
 #ifndef ZZ9000_H
@@ -11,9 +16,9 @@
 #define ZZ9K_MNT_MANUFACTURER  0x6d6e
 #define ZZ9K_PRODUCT_Z2        3
 #define ZZ9K_PRODUCT_Z3        4
-#define ZZ9K_PRODUCT           0x6d6e0003UL
 #define ZZ9K_PRODUCT_PC_Z2     0x6d6e0003UL
 #define ZZ9K_PRODUCT_PC_Z3     0x6d6e0004UL
+#define ZZ9K_PRODUCT           ZZ9K_PRODUCT_PC_Z2   /* the older name */
 #define ZZ9K_MAX_AUTOCON       16
 
 #define ZZ9K_REG_HW_VERSION    0x00
@@ -104,10 +109,9 @@
 #define ZZ9KIOC_GETMONSW       (ZZ9K_IOC | 15)  /* interim only, see below */
 #define ZZ9KIOC_BLITS          (ZZ9K_IOC | 16)  /* a batch of card-blitter fills/copies */
 /*
- * ZZ9KIOC_GETMONSW was answered by the interim RT-03 driver (03844ac, 407d379) that drove the
- * monitor-switch line itself; it is kept here for zz9k_monsw, which still meets such kernels.
- * Since RT-04 the line belongs to the kernel's monsw driver (sys/monsw.h) and this driver no
- * longer answers it.
+ * ZZ9KIOC_GETMONSW was answered by an interim driver (2026-09) that drove the monitor-switch
+ * line itself; it is kept here for zz9k_monsw, which still meets such kernels.  The line now
+ * belongs to the kernel's monsw driver (sys/monsw.h) and this driver no longer answers it.
  *
  * The RTG contract's monitor switch (Klaus Burckert's Xsvga-class numbering, as in Antti's
  * va2000.h): the X servers' rtg/ layer issues Set at screen init (SVGA) and at exit (Amiga)

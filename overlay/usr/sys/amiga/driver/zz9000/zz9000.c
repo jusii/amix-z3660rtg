@@ -1,6 +1,9 @@
 /*
  * zz9000.c - MNT ZZ9000 framebuffer/mode driver for Amiga UNIX.
  *
+ * Copyright (c) 2026 Ignacio Soriano.  The Z3660 target, the module form and
+ * later changes Copyright (c) 2026 Jussi Alanärä.  SPDX-License-Identifier: MIT
+ *
  * Board identity, window layout and register file are data: one row of
  * zz9k_boardtab[] per supported board (see zz9000.h).  The default rows
  * are the ZZ9000 Zorro II product 3 (attached) and the Zorro III product 4
@@ -131,9 +134,9 @@ struct zz9k_board {
     unsigned short height;
     unsigned short color_mode;
     unsigned short reg_hi;        /* SETREG HI-lane latch on a 32-bit row */
-    short monsw_handle;           /* monsw registration, -1 = none (RT-04) */
+    short monsw_handle;           /* monsw registration, -1 = none */
     short svga_switch;            /* last SVGAIOCSetMonitorSwitch: 1 Amiga, 2 SVGA */
-    unsigned long blitreg[ZZ9K_NREG];  /* blitter registers as last written (RT-09) */
+    unsigned long blitreg[ZZ9K_NREG];  /* blitter registers as last written */
     unsigned long blitvalid;      /* bit r: blitreg[r] is what the card holds */
 };
 
@@ -180,7 +183,7 @@ static void zz9k_monsw_attach();
 
 #ifdef ZZ9K_FB_NC
 /*
- * RT-05: the framebuffer window's pages go into the driver-line kernel's cache-class
+ * The framebuffer window's pages go into the driver-line kernel's cache-class
  * selector as noncacheable-not-serialised (NC, 0x60) instead of the default for an
  * unmanaged device page, NCS (0x40): stores then drain through the 68060 store buffer
  * instead of serialising the pipeline one by one.  Only the framebuffer (base+fb_phys,
@@ -194,7 +197,7 @@ extern int hat_cm_fb_add();
 #endif
 
 /*
- * RTG monitor switch (RT-04).  The machine's switch line belongs to the kernel's
+ * RTG monitor switch.  The machine's switch line belongs to the kernel's
  * card-independent monsw driver (sys/monsw.h, the port's driver-line kernels).  This driver
  * only (a) registers with it, offering the Z3660 firmware's `monitor_switch` (register
  * 0x318) as the seed -- used only when /etc/monsw is absent; (b) answers the RTG contract's
@@ -268,11 +271,16 @@ static struct zz9k_font *zz9k_console_font;
 
 #define ZZ9K_CON_WIDTH  1920
 #define ZZ9K_CON_HEIGHT 800
-#define ZZ9K_CON_MODE   ZZ9K_MODE_1920x800
 #define ZZ9K_CON_COLOR  ZZ9K_COLOR_16BIT565
 #define ZZ9K_FALLBACK_FONT_W 6
 #define ZZ9K_FALLBACK_FONT_H 8
 #define ZZ9K_FG         0xffff
+#define ZZ9K_NOMODE     0xffff          /* zz9k_mode_id: not in the row's table */
+#define ZZ9K_CURSOR_XOR 0xffff          /* the cursor inverts its cell */
+/* COLORMODE's high byte, the copy's plane mask: all planes (FILLRECT ignores it) */
+#define ZZ9K_COLORMODE_MASK  (0xff << 8)
+#define ZZ9K_FILL_TRIGGER    0xff       /* the value written to FILLRECT */
+#define ZZ9K_COPY_TRIGGER    1          /* the value written to COPYRECT */
 #define ZZ9K_BG         0x0000
 #define ZZ9K_FONT_MAGIC 0x2a46
 #define ZZ9K_ESC_NONE   0
@@ -410,7 +418,7 @@ static struct zz9k_regwin zz9k_regwin_z3660[] = {
 #endif /* ZZ9K_TARGET_Z3660 */
 
 /*
- * The card's blitter (fix 3).  The Z3660 firmware runs FILLRECT and COPYRECT
+ * The card's blitter.  The Z3660 firmware runs FILLRECT and COPYRECT
  * synchronously and acknowledges the triggering register write only when the
  * operation is done (rtg.c REG_ZZ_FILLRECT/COPYRECT), so no completion wait is
  * needed.  -DZZ9K_NO_BLITTER builds the Z3660 rows without it (the CPU loops,
@@ -542,7 +550,7 @@ unsigned short height;
     for (m = bp->bt->modes; m->width; ++m)
         if (m->width == width && m->height == height)
             return m->id;
-    return 0xffff;
+    return ZZ9K_NOMODE;
 }
 
 static unsigned short
@@ -861,7 +869,7 @@ unsigned long value;
     ZZ9K_REG(bp->base, off + 2) = (unsigned short)(value & 0xffff);
 }
 
-/* A blitter register write through the cache (RT-09): skipped when the card holds it. */
+/* A blitter register write through the cache: skipped when the card holds it. */
 static void
 zz9k_bwr(bp, r, value)
 struct zz9k_board *bp;
@@ -917,7 +925,7 @@ unsigned short color;
      * The Z3660 firmware byte-reverses the RGB register (rtg.c REG_ZZ_RGB:
      * rect_rgb = swap32 of the value written) and a 16-bit fill takes the low
      * half of that (gfx.c fill_rect_solid), i.e. the high half as written: a
-     * colour in the low half fills with 0 (rig, 2026-09-29).
+     * colour in the low half fills with 0 (measured on the bench, 2026-09-29).
      */
     if (bp->bt->regw == 4)
         zz9k_bwr32(bp, ZZ9K_R_RGB, (unsigned long)color << 16);
@@ -928,12 +936,12 @@ unsigned short color;
     /* the copy's value: FILLRECT ignores COLORMODE's mask byte, so fills and copies
      * interleaved in one batch do not rewrite it */
     zz9k_bwr(bp, ZZ9K_R_COLORMODE,
-        (unsigned long)(bp->color_mode | (0xff << 8)));
+        (unsigned long)(bp->color_mode | ZZ9K_COLORMODE_MASK));
     zz9k_bwr(bp, ZZ9K_R_X1, (unsigned long)x);
     zz9k_bwr(bp, ZZ9K_R_Y1, (unsigned long)y);
     zz9k_bwr(bp, ZZ9K_R_X2, (unsigned long)w);
     zz9k_bwr(bp, ZZ9K_R_Y2, (unsigned long)h);
-    zz9k_wr(bp, ZZ9K_R_FILLRECT, 0xff);
+    zz9k_wr(bp, ZZ9K_R_FILLRECT, ZZ9K_FILL_TRIGGER);
 }
 
 static void
@@ -953,10 +961,10 @@ int sx, sy, dx, dy, w, h;
     zz9k_bwr(bp, ZZ9K_R_ROW_PITCH,
         (unsigned long)((bp->width * zz9k_bpp(bp->color_mode)) >> 2));
     zz9k_bwr(bp, ZZ9K_R_COLORMODE,
-        (unsigned long)(bp->color_mode | (0xff << 8)));
+        (unsigned long)(bp->color_mode | ZZ9K_COLORMODE_MASK));
     zz9k_bwr32(bp, ZZ9K_R_SRC, 0);
     zz9k_bwr32(bp, ZZ9K_R_DST, 0);
-    zz9k_wr(bp, ZZ9K_R_COPYRECT, 1);
+    zz9k_wr(bp, ZZ9K_R_COPYRECT, ZZ9K_COPY_TRIGGER);
 }
 
 /*
@@ -1169,7 +1177,7 @@ unsigned long off;
     zz9k_bwr(bp, ZZ9K_R_X1, 0);
     zz9k_bwr(bp, ZZ9K_R_Y1, 0);
     zz9k_bwr(bp, ZZ9K_R_X2, (unsigned long)bp->width);
-    zz9k_bwr(bp, ZZ9K_R_COLORMODE, (unsigned long)(bp->color_mode | (0xff << 8)));
+    zz9k_bwr(bp, ZZ9K_R_COLORMODE, (unsigned long)(bp->color_mode | ZZ9K_COLORMODE_MASK));
     zz9k_wr32(bp, ZZ9K_R_PAN, off);
     --zz9k_blit_inuse;
 }
@@ -1513,7 +1521,7 @@ int on;
     for (py = 0; py < zz9k_console_font_h; ++py) {
         p = ZZ9K_CON_PIX(x, y + py);
         for (px = 0; px < zz9k_console_font_w; ++px) {
-            *p = *p ^ 0xffff;
+            *p = *p ^ ZZ9K_CURSOR_XOR;
             ++p;
         }
     }
@@ -1595,7 +1603,7 @@ zz9k_console_sgr()
         if (a == 0)
             zz9k_console_reset_attr();
         else if (a == 1)
-            zz9k_console_fg = 0xffff;
+            zz9k_console_fg = ZZ9K_FG;          /* bold: white */
         else if (a == 7) {
             tmp = zz9k_console_fg;
             zz9k_console_fg = zz9k_console_bg;
@@ -1790,7 +1798,7 @@ struct zz9k_board *bp;
     if (!bp || !bp->base)
         return ENXIO;
     id = zz9k_mode_id(bp, bp->bt->con_width, bp->bt->con_height);
-    if (id == 0xffff)
+    if (id == ZZ9K_NOMODE)
         return EINVAL;
     zz9k_con_w = bp->bt->con_width;
     zz9k_con_h = bp->bt->con_height;
@@ -2051,16 +2059,6 @@ int c;
     b = (unsigned char)c;
     (void)zz9000consolewrite(&b, 1);
 }
-
-int
-zz9000consoleputc(c)
-int c;
-{
-    unsigned char b;
-
-    b = (unsigned char)c;
-    return zz9000consolewrite(&b, 1);
-}
 #endif
 
 #ifdef ZZ9K_MODULE
@@ -2278,7 +2276,7 @@ int maxprot;
  * FILLRECT/COPYRECT, checked by the caller: the blitter when it serves the
  * board, else the CPU loops.  Called with the CPU loops' own argument lists,
  * so the ioctl switch's cases -- and its jump table, which the relink gate's
- * scan060 reads as code (407d379) -- keep their size.
+ * scan060 reads as code -- keep their size.
  */
 static void
 zz9k_fillrect(bp, x, y, w, h, color)
@@ -2485,7 +2483,7 @@ int *rvalp;
     /*
      * The RTG contract's monitor switch (SVGAIOC, 0xe3xx), handled outside the switch on
      * purpose: extra cases reshape the 0x5axx switch's jump table, and one table offset once
-     * decoded as a 68060-unimplemented movep in the relink gate's scan060 (407d379).
+     * decoded as a 68060-unimplemented movep in the relink gate's scan060.
      */
     if (cmd == SVGAIOCGetMonitorSwitch) {
         sw = bp->svga_switch;
@@ -2550,7 +2548,7 @@ int *rvalp;
             return EFAULT;
         id = zz9k_mode_id(bp, sm.width, sm.height);
         bpp = zz9k_bpp(sm.color_mode);
-        if (id == 0xffff || bpp == 0 || sm.scale_mode > ZZ9K_SCALE_MAX)
+        if (id == ZZ9K_NOMODE || bpp == 0 || sm.scale_mode > ZZ9K_SCALE_MAX)
             return EINVAL;
         if ((unsigned long)sm.width * sm.height * bpp > bp->fb_size)
             return ENOMEM;

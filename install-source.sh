@@ -4,6 +4,9 @@
 # Run this script from the repository root:
 #
 #   ./install-source.sh <amix-root>      (/ for the machine it runs on)
+#
+# Copyright (c) 2026 Ignacio Soriano; changes Copyright (c) 2026 Jussi Alanärä.
+# SPDX-License-Identifier: MIT
 
 ROOT=${1:?usage: install-source.sh <amix-root> (/ for this machine)}
 SRC=overlay/usr/sys/amiga/driver/zz9000

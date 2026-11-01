@@ -20,5 +20,5 @@ PY
 cp "$here/band-test.c" "$tmp/"
 cc -O -w -o "$tmp/band-test" "$tmp/band-test.c"
 "$tmp/band-test"; rc=$?
-rm -rf "$tmp"
+rm -rf "${tmp:?}"
 exit $rc
