@@ -957,6 +957,25 @@ unsigned short c;
         *(unsigned short *)q = c;
 }
 
+/* n bytes of c, 32 bits at a time between the unaligned ends (ZZ9KIOC_FILL) */
+static void
+zz9k_fill8(p, n, c)
+unsigned char *p;
+unsigned long n;
+unsigned char c;
+{
+    unsigned long *q, v;
+
+    for (; n > 0 && ((unsigned long)p & 3); --n)
+        *p++ = c;
+    v = c | ((unsigned long)c << 8);
+    v |= v << 16;
+    for (q = (unsigned long *)p; n >= 4; n -= 4)
+        *q++ = v;
+    for (p = (unsigned char *)q; n > 0; --n)
+        *p++ = c;
+}
+
 /* forward: dst below src, or the two apart */
 static void
 zz9k_copy16(d, s, n)
@@ -2366,10 +2385,8 @@ int *rvalp;
     int unit;
     int error;
     int sw;
-    unsigned long pos, limit, lane;
+    unsigned long limit, lane;
     unsigned short id, bpp;
-    unsigned char fill;
-    unsigned char *dst;
     struct zz9k_board *bp;
     struct zz9k_info info;
     struct zz9k_fbinfo fbi;
@@ -2487,18 +2504,19 @@ int *rvalp;
     case ZZ9KIOC_FILL:
         if (copyin((caddr_t)arg, (caddr_t)&zf, sizeof zf))
             return EFAULT;
-        if (zf.bytes == 0)
+        if (zf.bytes == 0) {
+            *rvalp = 0;
             break;
+        }
         if (zf.offset >= bp->fb_size)
             return EINVAL;
-        if (zf.bytes > bp->fb_size - zf.offset)
-            limit = bp->fb_size;
-        else
-            limit = zf.offset + zf.bytes;
-        fill = (unsigned char)zf.value;
-        dst = (unsigned char *)bp->fb + zf.offset;
-        for (pos = zf.offset; pos < limit; ++pos)
-            *dst++ = fill;
+        limit = bp->fb_size - zf.offset;
+        if (limit > zf.bytes)
+            limit = zf.bytes;
+        if (limit > ZZ9K_FILL_MAX)
+            limit = ZZ9K_FILL_MAX;
+        zz9k_fill8((unsigned char *)bp->fb + zf.offset, limit, (unsigned char)zf.value);
+        *rvalp = (int)limit;
         break;
 
     case ZZ9KIOC_FILLRECT:

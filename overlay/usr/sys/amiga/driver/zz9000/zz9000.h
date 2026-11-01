@@ -188,6 +188,13 @@ struct zz9k_pan {
     unsigned long offset;
 };
 
+/*
+ * ZZ9KIOC_FILL: bytes from offset in the framebuffer set to the low byte of
+ * value.  One call fills at most ZZ9K_FILL_MAX bytes (and not past the end)
+ * and returns the number it filled; a caller with more calls again.
+ */
+#define ZZ9K_FILL_MAX          0x00100000UL
+
 struct zz9k_fill {
     unsigned long offset;
     unsigned long bytes;

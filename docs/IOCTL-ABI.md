@@ -93,3 +93,14 @@ the next section). The server's `-blitmax` banding is no longer needed for inter
 The static driver's `zz9k_blit_maxarea` and the module's `maxarea` parameter now default to
 8192 px. `0` also means the default. A value of a screen's area or more (up to the
 parameter's limit, 3686400) never splits.
+
+## FILL: at most 1 MiB per call, and the count
+
+`ZZ9KIOC_FILL` once filled up to the whole framebuffer (46 MB on the Z3660) byte by byte, in
+one kernel loop. It now fills at most `ZZ9K_FILL_MAX` (1 MiB) per call, with 32-bit stores,
+and returns the number of bytes it filled (before 1.1 it returned 0). A caller with more to
+fill calls again from `offset + r`.
+
+The X server clears the screen once at start with one FILL and ignores the result. It now
+clears the first 1 MiB. Its first root-window paint covers the rest, so nothing visible
+changes. To clear all of it, it would loop on the count.

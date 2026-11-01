@@ -570,6 +570,32 @@ t_cpu_loops()
 }
 
 static void
+t_fill()
+{
+    struct zz9k_fill f;
+    unsigned char *fb = (unsigned char *)zz9k_boards[0].fb;
+    unsigned long n = zz9k_boards[0].fb_size;
+    int bad, i;
+
+    memset(fb, 0x11, 3 * ZZ9K_FILL_MAX);
+    f.offset = 3; f.bytes = 2 * ZZ9K_FILL_MAX; f.value = 0x1a5;
+    EQ(ioc(ZZ9KIOC_FILL, 64, &f, sizeof f, RW, &kuser), 0, "FILL 2 MiB");
+    EQ(krval, (long)ZZ9K_FILL_MAX, "one call fills 1 MiB");
+    bad = fb[2] != 0x11 || fb[3 + ZZ9K_FILL_MAX] != 0x11;
+    for (i = 3; i < 3 + (int)ZZ9K_FILL_MAX; ++i)
+        bad += fb[i] != 0xa5;
+    EQ(bad, 0, "exactly the bytes asked, the low byte of value, from an odd offset");
+    f.offset = n - 5; f.bytes = 100;
+    EQ(ioc(ZZ9KIOC_FILL, 64, &f, sizeof f, RW, &kuser), 0, "FILL at the end");
+    EQ(krval, 5, "not past the end");
+    f.offset = n;
+    EQ(ioc(ZZ9KIOC_FILL, 64, &f, sizeof f, RW, &kuser), EINVAL, "FILL beyond the end");
+    f.offset = 0; f.bytes = 0;
+    EQ(ioc(ZZ9KIOC_FILL, 64, &f, sizeof f, RW, &kuser), 0, "FILL of nothing");
+    EQ(krval, 0, "fills 0");
+}
+
+static void
 t_rect()
 {
     struct zz9k_board *bp = &zz9k_boards[0];
@@ -637,6 +663,7 @@ char **argv;
     t_console_guard();
     t_console_scroll();
     t_cpu_loops();
+    t_fill();
     t_rect();
     printf("%s: %d passed, %d failed\n", ZZ9K_HOST_CONFIG, npass, nfail);
     return nfail != 0;
