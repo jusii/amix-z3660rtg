@@ -225,7 +225,6 @@ static void zz9k_fill_fbinfo();
 static void zz9k_set_mode_hw();
 static void zz9k_set_switch_hw();
 static int zz9k_console_enable();
-static int zz9k_console_redirect_enable();
 static void zz9k_console_disable();
 static int zz9k_console_test();
 static void zz9k_console_puts();
@@ -244,7 +243,6 @@ static void zz9k_kputc();
 #endif
 static int zz9k_console_on;
 static int zz9k_console_redirect;
-static int zz9k_console_disabled;
 static int zz9k_console_row;
 static int zz9k_console_col;
 static int zz9k_console_cols;
@@ -1906,39 +1904,48 @@ zz9k_con_unhold()
     zz9k_con_release(spl7());
 }
 
+/*
+ * ZZ9KIOC_CONSOLE ENABLE and REDIRECT (the same): take the kernel's console output first,
+ * then switch the monitor and clear the screen, so a refusal (the core's one hook already
+ * taken: EBUSY) leaves the display as it was.  Until zz9k_console_redirect is set the hook
+ * passes every write on.  A second ENABLE restarts the console and keeps the hook.
+ */
 static int
 zz9k_console_enable(bp)
 struct zz9k_board *bp;
 {
     int error;
-
-    if (!zz9k_con_hold())
-        return EBUSY;
-    error = zz9k_console_start(bp);
-    zz9k_con_unhold();
-    if (error)
-        return error;
 #ifdef ZZ9K_MODULE
-    error = cons_hook_set(zz9k_cons_hook);
+    int hooked;
+
+    hooked = 0;
+    if (!zz9k_console_redirect) {
+        error = cons_hook_set(zz9k_cons_hook);
+        if (error)
+            return error;
+        hooked = 1;
+    }
+#endif
+    if (!zz9k_con_hold())
+        error = EBUSY;
+    else {
+        error = zz9k_console_start(bp);
+        zz9k_con_unhold();
+    }
     if (error) {
-        zz9k_console_on = 0;
+#ifdef ZZ9K_MODULE
+        if (hooked)
+            cons_hook_clear();
+#endif
         return error;
     }
-#else
+#ifndef ZZ9K_MODULE
     if (!zz9k_old_conputc)
         zz9k_old_conputc = conputc;
     conputc = zz9k_kputc;
 #endif
     zz9k_console_redirect = 1;
-    zz9k_console_disabled = 0;
     return 0;
-}
-
-static int
-zz9k_console_redirect_enable(bp)
-struct zz9k_board *bp;
-{
-    return zz9k_console_enable(bp);
 }
 
 static void
@@ -1958,7 +1965,6 @@ zz9k_console_disable()
         conputc = zz9k_old_conputc;
 #endif
     zz9k_console_redirect = 0;
-    zz9k_console_disabled = 1;
     zz9k_console_on = 0;
     zz9k_con_unhold();                  /* what interrupted us is dropped: the console is off */
     if (bp)
@@ -2654,7 +2660,7 @@ int *rvalp;
             break;
         }
         if (arg == ZZ9K_CONSOLE_REDIRECT) {
-            error = zz9k_console_redirect_enable(bp);
+            error = zz9k_console_enable(bp);
             if (error)
                 return error;
             printf("zz9000 console redirect enabled\n");

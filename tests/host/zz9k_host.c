@@ -408,6 +408,41 @@ nested_writer()
 }
 #endif
 
+#ifdef ZZ9K_MODULE
+static int
+other_hook()
+{
+    return 0;
+}
+#endif
+
+static void
+t_console_enable()
+{
+#ifdef ZZ9K_MODULE
+    unsigned int mode;
+
+    setmode(1280, 720);
+    mode = *reg32(ZZ9K_Z3660_REG_MODE);
+    khook = other_hook;         /* another driver has the console */
+    EQ(iocv(ZZ9KIOC_CONSOLE, ZZ9K_CONSOLE_ENABLE, RW, &kroot), EBUSY, "the hook is taken");
+    EQ(*reg32(ZZ9K_Z3660_REG_MODE), mode, "the display is left as it was");
+    EQ(zz9k_console_on, 0, "the console stays off");
+    CHECK(khook == other_hook, "the other hook is kept");
+    khook = 0;
+    EQ(iocv(ZZ9KIOC_CONSOLE, ZZ9K_CONSOLE_REDIRECT, RW, &kroot), 0, "REDIRECT");
+    EQ(iocv(ZZ9KIOC_CONSOLE, ZZ9K_CONSOLE_ENABLE, RW, &kroot), 0, "ENABLE again");
+    CHECK(khook == zz9k_cons_hook && zz9k_console_on && zz9k_console_redirect,
+        "the console restarted, the hook kept");
+    EQ(iocv(ZZ9KIOC_CONSOLE, ZZ9K_CONSOLE_DISABLE, RW, &kroot), 0, "DISABLE");
+    CHECK(khook == 0, "the hook cleared");
+    zz9k_boards[0].fb_size = 1000;      /* too small for the console's mode */
+    EQ(iocv(ZZ9KIOC_CONSOLE, ZZ9K_CONSOLE_ENABLE, RW, &kroot), ENOMEM, "start fails");
+    CHECK(khook == 0, "the hook is rolled back");
+    zz9k_boards[0].fb_size = ZZ9K_Z3660_FB_MAX;
+#endif
+}
+
 static void
 t_console_guard()
 {
@@ -708,6 +743,7 @@ char **argv;
     t_allowlist();
     t_band();
     t_blits();
+    t_console_enable();
     t_console_guard();
     t_console_scroll();
     t_cpu_loops();
