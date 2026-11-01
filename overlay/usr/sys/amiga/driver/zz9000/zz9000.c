@@ -1973,9 +1973,10 @@ int sx, sy, dx, dy, w, h;
 }
 
 /*
- * ZZ9KIOC_BLITS (zz9000.h): records are copied in a few at a time, each one
- * checked just before it runs.  On success the ioctl returns the number done;
- * on an error the records before the failing one have run.
+ * ZZ9KIOC_BLITS (zz9000.h): records are copied in a few at a time, each one checked just
+ * before it runs.  The return is the number run; an error means none ran.  The pixel
+ * budget bounds the call: interrupts are taken between bands, but the calling process
+ * holds the CPU for the whole call.
  */
 static int
 zz9k_blits(bp, arg, rvalp)
@@ -1987,6 +1988,7 @@ int *rvalp;
     struct zz9k_blit rec[8];
     struct zz9k_blit *b;
     unsigned long done, i, k;
+    long area, used;
 
     if (copyin((caddr_t)arg, (caddr_t)&bs, sizeof bs))
         return EFAULT;
@@ -1995,13 +1997,18 @@ int *rvalp;
     if (bs.n > ZZ9K_BLITS_MAX)
         return EINVAL;
     ZZ9K_BLIT_FORGET(bp);
+    used = 0;
     for (done = 0; done < bs.n; done += k) {
         k = bs.n - done;
         if (k > 8)
             k = 8;
         if (copyin((caddr_t)(bs.recs + done), (caddr_t)rec,
-                   (unsigned)(k * sizeof rec[0])))
-            return EFAULT;
+                   (unsigned)(k * sizeof rec[0]))) {
+            if (done == 0)
+                return EFAULT;
+            *rvalp = (int)done;
+            return 0;
+        }
         for (i = 0; i < k; i++) {
             b = &rec[i];
             if (!zz9k_rect_ok(bp, (unsigned long)b->x, (unsigned long)b->y,
@@ -2009,8 +2016,18 @@ int *rvalp;
                 (b->op == ZZ9K_BLIT_COPY &&
                  !zz9k_rect_ok(bp, (unsigned long)b->src_x, (unsigned long)b->src_y,
                                (unsigned long)b->width, (unsigned long)b->height)) ||
-                (b->op != ZZ9K_BLIT_FILL && b->op != ZZ9K_BLIT_COPY))
-                return EINVAL;
+                (b->op != ZZ9K_BLIT_FILL && b->op != ZZ9K_BLIT_COPY)) {
+                if (done + i == 0)
+                    return EINVAL;
+                *rvalp = (int)(done + i);
+                return 0;
+            }
+            area = (long)b->width * b->height;
+            if (done + i > 0 && area > ZZ9K_BLITS_PIXELS - used) {
+                *rvalp = (int)(done + i);
+                return 0;
+            }
+            used += area;
             if (b->op == ZZ9K_BLIT_FILL)
                 zz9k_blit_run(bp, -1, 0, b->x, b->y, b->width, b->height,
                     (unsigned short)b->color);

@@ -285,6 +285,95 @@ t_band()
     zz9k_blit_maxarea = keep;
 }
 
+/* records at user offset 4096, the header at 64 */
+static int
+blits(recs, n)
+struct zz9k_blit *recs;
+int n;
+{
+    struct zz9k_blits bs;
+
+    memcpy(uspace + 4096, recs, n * sizeof *recs);
+    bs.recs = (struct zz9k_blit *)4096;
+    bs.n = n;
+    return ioc(ZZ9KIOC_BLITS, 64, &bs, sizeof bs, RW, &kuser);
+}
+
+static void
+setmode(w, h)
+int w, h;
+{
+    struct zz9k_mode m;
+
+    m.width = w; m.height = h; m.color_mode = ZZ9K_COLOR_16BIT565; m.scale_mode = 0;
+    EQ(ioc(ZZ9KIOC_SETMODE, 64, &m, sizeof m, RW, &kroot), 0, "SETMODE");
+}
+
+static void
+t_blits()
+{
+    static struct zz9k_blit r[40];
+    int i;
+
+#ifdef ZZ9K_TARGET_Z3660
+    setmode(1920, 1080);
+#else
+    setmode(1280, 720);
+#endif
+    for (i = 0; i < 40; ++i) {
+        memset(&r[i], 0, sizeof r[i]);
+        r[i].op = ZZ9K_BLIT_FILL;
+        r[i].width = 1920;
+        r[i].height = 1080;
+    }
+#ifndef ZZ9K_TARGET_Z3660
+    EQ(blits(r, 2), ENXIO, "no blitter on the ZZ9000 rows");
+    return;
+#endif
+    EQ(blits(r, 0), 0, "an empty batch");
+    EQ(krval, 0, "returns 0");
+    EQ(blits(r, 8), 0, "eight full-screen fills");
+    EQ(krval, 2, "the 4 Mpx budget ends the call after two");
+    r[0].width = 100; r[0].height = 100;
+    r[1].width = 100; r[1].height = 100;
+    EQ(blits(r, 2), 0, "two small fills");
+    EQ(krval, 2, "both run");
+    r[0].width = 1921;
+    EQ(blits(r, 2), EINVAL, "record 0 off screen");
+    r[0].width = 100;
+    r[0].op = 7;
+    EQ(blits(r, 2), EINVAL, "record 0 neither FILL nor COPY");
+    r[0].op = ZZ9K_BLIT_FILL;
+    for (i = 0; i < 40; ++i) {
+        r[i].width = 10; r[i].height = 10;
+    }
+    r[11].op = ZZ9K_BLIT_COPY;
+    r[11].src_x = 1915;
+    EQ(blits(r, 20), 0, "a bad copy source at record 11");
+    EQ(krval, 11, "returns 11: records 0-10 ran");
+    r[11].src_x = 0;
+    EQ(blits(r, 40), 0, "forty small records");
+    EQ(krval, 40, "all run");
+    EQ(blits(r, ZZ9K_BLITS_MAX + 1), EINVAL, "more than ZZ9K_BLITS_MAX");
+    {
+        struct zz9k_blits bs;
+
+        bs.recs = (struct zz9k_blit *)(USPACE - 3 * sizeof r[0]);
+        bs.n = 16;
+        memcpy(uspace + USPACE - 3 * sizeof r[0], r, 3 * sizeof r[0]);
+        EQ(ioc(ZZ9KIOC_BLITS, 64, &bs, sizeof bs, RW, &kuser), EFAULT,
+            "records past the end of user space: nothing ran");
+        bs.recs = (struct zz9k_blit *)(USPACE - 8 * sizeof r[0]);
+        memcpy(uspace + USPACE - 8 * sizeof r[0], r, 8 * sizeof r[0]);
+        EQ(ioc(ZZ9KIOC_BLITS, 64, &bs, sizeof bs, RW, &kuser), 0,
+            "the second group unreadable");
+        EQ(krval, 8, "returns the first group's 8");
+    }
+    zz9k_blit_on = 0;
+    EQ(blits(r, 2), ENXIO, "blitter patched off");
+    zz9k_blit_on = 1;
+}
+
 static void
 t_rect()
 {
@@ -349,6 +438,7 @@ char **argv;
     t_privilege();
     t_allowlist();
     t_band();
+    t_blits();
     t_rect();
     printf("%s: %d passed, %d failed\n", ZZ9K_HOST_CONFIG, npass, nfail);
     return nfail != 0;

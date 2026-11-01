@@ -216,14 +216,22 @@ struct zz9k_copyrect {
  * pixels of the current mode, run in order by the card's own blitter.  Only
  * a board whose row carries ZZ9K_BT_BLITTER answers it (ENXIO otherwise, and
  * in a mode the blitter is not used for), so a caller falls back to its own
- * CPU path.  Every record is checked against the screen before it runs; the
- * first bad one stops the batch with EINVAL (the records before it have
- * run); on success the ioctl returns n.  Copies may overlap in either
- * direction.
+ * CPU path.  Copies may overlap in either direction.
+ *
+ * The ioctl returns r >= 0: records [0, r) have run and [r, n) have not; the
+ * caller sends [r, n) again.  r < n when the call's pixel budget
+ * (ZZ9K_BLITS_PIXELS, counted over whole records; the first record always
+ * runs) is spent, when record r is outside the screen or not a FILL or COPY,
+ * or when record r cannot be read.  An error means no record ran: ENXIO the
+ * blitter is not available (draw on the CPU from here on), EINVAL record 0
+ * is bad or n > ZZ9K_BLITS_MAX, EFAULT record 0 or the header cannot be
+ * read.  (Before 2026-11-01 a bad record after the first gave EINVAL with the
+ * records before it run, and success always returned n.)  docs/IOCTL-ABI.md.
  */
 #define ZZ9K_BLIT_FILL         1
 #define ZZ9K_BLIT_COPY         2
 #define ZZ9K_BLITS_MAX         1024    /* records per call */
+#define ZZ9K_BLITS_PIXELS      4194304 /* pixels per call (4 Mpx, ~80 ms of blitter) */
 
 struct zz9k_blit {
     unsigned short op;            /* ZZ9K_BLIT_FILL or ZZ9K_BLIT_COPY */
