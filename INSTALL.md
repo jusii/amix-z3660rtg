@@ -12,10 +12,11 @@ These instructions assume a vanilla or locally maintained AMIX source tree at
 From the repository root on AMIX:
 
 ```sh
-sh install-source.sh
+sh install-source.sh /
 ```
 
-For a mounted or staged root, pass its prefix:
+The root is required, so a run on another machine never writes into its own
+`/usr/sys` by default. For a mounted or staged root, pass its prefix:
 
 ```sh
 sh install-source.sh /mnt
