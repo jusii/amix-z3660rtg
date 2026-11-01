@@ -51,6 +51,8 @@ unsigned long n;
     return 0;
 }
 
+#define bzero(p, n)     memset((p), 0, (n))
+
 static int
 copyout(k, u, n)
 char *k, *u;

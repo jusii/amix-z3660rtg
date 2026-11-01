@@ -119,3 +119,19 @@ into the client's framebuffer and switched the monitor on every write.
 `scale_mode` is bit 0 (double horizontally) and bit 1 (double vertically). A value above
 `ZZ9K_SCALE_MAX` (3) gives `EINVAL`. Before 1.1 the high bits were shifted into the MODE
 register unchecked.
+
+## GETMODES: the board's mode table (new)
+
+`ZZ9KIOC_GETMODES` (`ZZ9K_IOC | 20`, `struct zz9k_modes`) returns the modes `SETMODE` accepts
+on the attached board: width, height and the firmware's mode id, in the driver's order, with
+`count` entries filled (at most `ZZ9K_MODES_MAX`, 32). Any descriptor may ask. The X
+server's `-mode` table and `startx-rtg`'s list of known modes can come from here instead of
+keeping their own copies. Numbers 17 and 18 are left unused, because other builds of this
+driver use them.
+
+## What the X side can do without a driver change
+
+The X server maps `GETINFO.board_size`, the whole 46 MB window on the Z3660, which is why
+`startx-rtg` raises `ulimit -v`. `GETFBINFO` already gives `fb_offset`, `stride` and
+`height`, so the server can map `fb_offset + stride * height` rounded up to a page, and the
+memory limit hack can go. No new field is needed.

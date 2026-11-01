@@ -2372,6 +2372,28 @@ int *rvalp;
     return 0;
 }
 
+/* ZZ9KIOC_GETMODES (zz9000.h): the row's mode table. */
+static int
+zz9k_getmodes(bp, arg)
+struct zz9k_board *bp;
+int arg;
+{
+    struct zz9k_modes ms;
+    struct zz9k_modetab *m;
+    int i;
+
+    bzero((caddr_t)&ms, sizeof ms);
+    for (i = 0, m = bp->bt->modes; m->width && i < ZZ9K_MODES_MAX; ++i, ++m) {
+        ms.mode[i].width = m->width;
+        ms.mode[i].height = m->height;
+        ms.mode[i].id = m->id;
+    }
+    ms.count = (unsigned short)i;
+    if (copyout((caddr_t)&ms, (caddr_t)arg, sizeof ms))
+        return EFAULT;
+    return 0;
+}
+
 /*
  * A GETREG (set 0) or SETREG (set 1) of the 16-bit lane at off: inside the page, even, and
  * in one of the row's windows (zz9000.h, struct zz9k_regwin).
@@ -2522,6 +2544,8 @@ int *rvalp;
 
     if (!zz9k_probe(unit))
         return ENXIO;
+    if (cmd == ZZ9KIOC_GETMODES)        /* outside the switch, as BLITS */
+        return zz9k_getmodes(bp, arg);
 
     switch (cmd) {
     case ZZ9KIOC_GETINFO:

@@ -790,6 +790,29 @@ t_fixed()
 }
 
 static void
+t_getmodes()
+{
+    static struct zz9k_modes ms;
+    int i, bad;
+
+    EQ(ioc(ZZ9KIOC_GETMODES, 64, &ms, sizeof ms, FREAD, &kuser), 0, "GETMODES, read-only");
+#ifdef ZZ9K_TARGET_Z3660
+    EQ(ms.count, 17, "the Z3660 table");
+    CHECK(ms.mode[12].width == 1280 && ms.mode[12].height == 800 &&
+        ms.mode[12].id == ZZ9K_Z3660_MODE_1280x800, "1280x800, id 17");
+#else
+    EQ(ms.count, 13, "the ZZ9000 table");
+    CHECK(ms.mode[12].width == 1920 && ms.mode[12].id == ZZ9K_MODE_1920x800, "1920x800");
+#endif
+    CHECK(ms.mode[0].width == 1280 && ms.mode[0].height == 720 && ms.mode[0].id == 0,
+        "1280x720 first");
+    for (i = ms.count, bad = 0; i < ZZ9K_MODES_MAX; ++i)
+        bad += ms.mode[i].width != 0;
+    EQ(bad, 0, "the rest zeroed");
+    EQ(sizeof ms, 260, "260 bytes");
+}
+
+static void
 t_layout()
 {
     struct zz9k_autocon_dump d;
@@ -887,6 +910,7 @@ char **argv;
     t_fill();
     t_rect();
     t_layout();
+    t_getmodes();
     t_fixed();
     printf("%s: %d passed, %d failed\n", ZZ9K_HOST_CONFIG, npass, nfail);
     return nfail != 0;

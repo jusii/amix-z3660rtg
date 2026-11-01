@@ -108,6 +108,8 @@
 #define ZZ9KIOC_CONPUTS        (ZZ9K_IOC | 14)  /* write text to the framebuffer console */
 #define ZZ9KIOC_GETMONSW       (ZZ9K_IOC | 15)  /* interim only, see below */
 #define ZZ9KIOC_BLITS          (ZZ9K_IOC | 16)  /* a batch of card-blitter fills/copies */
+/* 17 and 18 are taken by other builds of this driver (soft3D, BLITX); not answered here */
+#define ZZ9KIOC_GETMODES       (ZZ9K_IOC | 20)  /* the attached board's mode table */
 /*
  * ZZ9KIOC_GETMONSW was answered by an interim driver (2026-09) that drove the monitor-switch
  * line itself; it is kept here for zz9k_monsw, which still meets such kernels.  The line now
@@ -192,6 +194,26 @@ struct zz9k_mode {
     unsigned short height;
     unsigned short color_mode;
     unsigned short scale_mode;
+};
+
+/*
+ * ZZ9KIOC_GETMODES: the modes SETMODE accepts on the attached board, in the
+ * driver's order, with the firmware's mode id.  count is how many entries are
+ * filled.  Any descriptor may ask.
+ */
+#define ZZ9K_MODES_MAX         32
+
+struct zz9k_modeent {
+    unsigned short width;
+    unsigned short height;
+    unsigned short id;
+    unsigned short pad;
+};
+
+struct zz9k_modes {
+    unsigned short count;
+    unsigned short pad;
+    struct zz9k_modeent mode[ZZ9K_MODES_MAX];
 };
 
 struct zz9k_pan {
