@@ -9,4 +9,5 @@ unload=allowed
 desc=Z3660/ZZ9000 RTG framebuffer
 param=blit:bool:1
 param=fixed:bool:0
+param=kvfb:int:0:0:46
 param=maxarea:int:8192:0:3686400

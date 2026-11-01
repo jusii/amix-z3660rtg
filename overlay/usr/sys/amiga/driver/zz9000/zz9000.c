@@ -125,8 +125,11 @@ extern struct zz9k_font *builtinfont[];
 
 struct zz9k_board {
     struct zz9k_boardtab *bt;
-    long base;
-    char *fb;
+    long base;                    /* the register page, as the kernel reaches it */
+    long phys;                    /* the window's physical base */
+    char *fb;                     /* the framebuffer, as the kernel reaches it */
+    unsigned long fb_kmap;        /* framebuffer bytes the kernel reaches (fb_size, or the mapped part) */
+    short mapped;                 /* the window is mapped (zz9k_map), not identity-mapped */
     unsigned long board_size;
     unsigned long fb_size;
     unsigned short hw_version;
@@ -672,15 +675,23 @@ struct zz9k_board *bp;
 }
 
 
+/*
+ * Attach the row's board at physical base.  kregs and kfb are the kernel's addresses of the
+ * register page and the framebuffer when the window is mapped (kfblen bytes of it), or 0
+ * when it lies in the identity map and the physical address is the kernel's.
+ */
 static int
-zz9k_attach(bp, bt, base, size)
+zz9k_attach_at(bp, bt, base, size, kregs, kfb, kfblen)
 struct zz9k_board *bp;
 struct zz9k_boardtab *bt;
 long base;
 long size;
+char *kregs;
+char *kfb;
+unsigned long kfblen;
 {
     bp->bt = bt;
-    bp->base = base;
+    bp->base = kregs ? (long)kregs : base;
     if (!zz9k_present(bp)) {
         bp->base = 0;
         bp->bt = (struct zz9k_boardtab *)0;
@@ -691,6 +702,8 @@ long size;
             printf("zz9000: no %s at 0x%x\n", bt->name, (unsigned int)base);
         return 0;
     }
+    bp->phys = base;
+    bp->mapped = kregs != 0;
 
     if (bt->fb_max) {
         bp->fb_size = bt->fb_max;
@@ -703,6 +716,12 @@ long size;
             bp->fb_size = 0;
     }
     bp->fb = (char *)base + bt->fb_phys;
+    bp->fb_kmap = bp->fb_size;
+    if (kregs) {
+        bp->fb = kfb;
+        if (bp->fb_kmap > kfblen)
+            bp->fb_kmap = kfblen;
+    }
 #ifdef ZZ9K_FB_NC
     if (bp->fb_size) {
         if (hat_cm_fb_add(phystopfn((unsigned long)base + bt->fb_phys),
@@ -722,13 +741,147 @@ long size;
     zz9k_monsw_attach(bp);
 
     printf("zz9000: %s at 0x%x size 0x%x hw 0x%x fw 0x%x\n", bt->name,
-        (unsigned int)bp->base, (unsigned int)bp->board_size,
+        (unsigned int)bp->phys, (unsigned int)bp->board_size,
         bp->hw_version, bp->fw_version);
+    if (bp->mapped)
+        printf("zz9000: mapped: the register page and 0x%x bytes of the framebuffer\n",
+            (unsigned int)bp->fb_kmap);
     if (bt->fw_min && bp->fw_version < bt->fw_min)
         printf("zz9000: warning firmware 0x%x is older than 0x%x\n",
             bp->fw_version, bt->fw_min);
     return 1;
 }
+
+static int
+zz9k_attach(bp, bt, base, size)
+struct zz9k_board *bp;
+struct zz9k_boardtab *bt;
+long base;
+long size;
+{
+    return zz9k_attach_at(bp, bt, base, size, (char *)0, (char *)0, 0UL);
+}
+
+/*
+ * A window outside the identity-mapped low 1 GB -- the Z3660 under autoconfig_rtg YES
+ * lies at 0x40000000, or 0x50000000 when the 256 MB RAM board configures first -- is
+ * reached through kernel mappings of the two parts the display needs: the register page
+ * and the start of the framebuffer, at most zz9k_kvfb MiB of it (the console and the
+ * kernel's own drawing stay inside that part; user mmap still reaches the whole
+ * framebuffer by its physical pages).  Only rows whose device space is the framebuffer
+ * alone (fb_offset 0) are attached this way, so nothing else on the board is mapped.
+ *
+ * The mapping depends on the line: on the 68040/68060 line dev_kvmap, which sets the
+ * cache class (noncacheable-serialised for the registers, noncacheable for the
+ * framebuffer); on the 68030 line sptalloc, whose pages are not data-cached there, from
+ * a shared 4 MiB pool.  A build with neither (-DZZ9K_DEV_KVMAP, -DZZ9K_SPT_MAP) refuses
+ * such a window, as before.  No sleeping: a failed mapping is a failed probe.
+ */
+#if defined(ZZ9K_DEV_KVMAP) || defined(ZZ9K_SPT_MAP)
+#define ZZ9K_CAN_MAP 1
+#ifdef ZZ9K_DEV_KVMAP
+extern char *dev_kvmap();
+extern void dev_kvunmap();
+#define ZZ9K_KVFB_DEFAULT  8        /* MiB: a 1920x1080 console's pan ring */
+#else
+extern char *sptalloc();
+extern void sptfree();
+#define ZZ9K_KVFB_DEFAULT  2        /* MiB, of the 4 MiB pool other drivers share */
+#endif
+#define ZZ9K_KVFB_MIN      1
+#define ZZ9K_KVFB_LIMIT    46
+#define ZZ9K_CM_NCS        0x40     /* noncacheable, serialised: registers */
+#define ZZ9K_CM_NC         0x60     /* noncacheable: the framebuffer */
+#define ZZ9K_MIB           0x100000UL
+int zz9k_kvfb = ZZ9K_KVFB_DEFAULT;  /* kernel-patchable; the module's kvfb parameter */
+
+static char *
+zz9k_map(phys, len, cm)
+unsigned long phys, len;
+int cm;
+{
+#ifdef ZZ9K_DEV_KVMAP
+    return dev_kvmap(phys, len, cm, 1);         /* flags 1: do not sleep */
+#else
+    return sptalloc((int)((len + NBPP - 1) / NBPP), PG_V, phystopfn(phys), 0);
+#endif
+}
+
+static void
+zz9k_unmap(kva, len)
+char *kva;
+unsigned long len;
+{
+    if (!kva)
+        return;
+#ifdef ZZ9K_DEV_KVMAP
+    dev_kvunmap(kva, len);
+#else
+    sptfree(kva, (int)((len + NBPP - 1) / NBPP), 0);
+#endif
+}
+
+/* the board's mapped parts: released at unload or when the attach fails */
+static char *zz9k_kregs;
+static unsigned long zz9k_kregslen;
+static char *zz9k_kfb;
+static unsigned long zz9k_kfblen;
+
+static void
+zz9k_unmap_all()
+{
+    zz9k_unmap(zz9k_kfb, zz9k_kfblen);
+    zz9k_unmap(zz9k_kregs, zz9k_kregslen);
+    zz9k_kfb = zz9k_kregs = (char *)0;
+    zz9k_kfblen = zz9k_kregslen = 0;
+}
+
+static int
+zz9k_attach_mapped(bp, bt, base, size)
+struct zz9k_board *bp;
+struct zz9k_boardtab *bt;
+long base;
+long size;
+{
+    unsigned long fbsize, want;
+    int mib;
+
+    if (bt->fb_offset != 0 || bt->reg_size == 0)
+        return 0;
+    fbsize = bt->fb_max ? bt->fb_max : (unsigned long)size - bt->fb_phys - bt->reserved_tail;
+    zz9k_kregs = zz9k_map((unsigned long)base, bt->reg_size, ZZ9K_CM_NCS);
+    zz9k_kregslen = bt->reg_size;
+    if (!zz9k_kregs) {
+        printf("zz9000: %s at 0x%x: cannot map its register page\n", bt->name,
+            (unsigned int)base);
+        return 0;
+    }
+    /* as much of the framebuffer as asked, halving when the kernel has less room */
+    mib = zz9k_kvfb;
+    if (mib < ZZ9K_KVFB_MIN || mib > ZZ9K_KVFB_LIMIT)
+        mib = ZZ9K_KVFB_DEFAULT;
+    for (; mib >= ZZ9K_KVFB_MIN; mib >>= 1) {
+        want = (unsigned long)mib * ZZ9K_MIB;
+        if (want > fbsize)
+            want = fbsize;
+        zz9k_kfb = zz9k_map((unsigned long)base + bt->fb_phys, want, ZZ9K_CM_NC);
+        if (zz9k_kfb) {
+            zz9k_kfblen = want;
+            break;
+        }
+    }
+    if (!zz9k_kfb) {
+        printf("zz9000: %s at 0x%x: cannot map its framebuffer\n", bt->name,
+            (unsigned int)base);
+        zz9k_unmap_all();
+        return 0;
+    }
+    if (zz9k_attach_at(bp, bt, base, size, zz9k_kregs, zz9k_kfb, zz9k_kfblen))
+        return 1;
+    zz9k_unmap_all();
+    return 0;
+}
+#endif /* ZZ9K_DEV_KVMAP || ZZ9K_SPT_MAP */
 
 static void
 zz9k_fill_autocon(dump)
@@ -813,6 +966,13 @@ int unit;
          */
         if ((unsigned long)base >= ZZ9K_VSECT1 ||
             ZZ9K_VSECT1 - (unsigned long)base < (unsigned long)size) {
+#ifdef ZZ9K_CAN_MAP
+            if (bt->fb_offset == 0) {
+                if (zz9k_attach_mapped(bp, bt, base, size))
+                    return 1;
+                continue;
+            }
+#endif
             printf("zz9000: %s at 0x%x size 0x%x is outside the identity map\n",
                 bt->name, (unsigned int)base, (unsigned int)size);
             if (bt->advice[0])
@@ -925,6 +1085,17 @@ unsigned long off;
     if (off < bp->bt->fb_offset)
         return (char *)bp->base + off;
     return bp->fb + (off - bp->bt->fb_offset);
+}
+
+/* The physical address behind device offset off (d_mmap). */
+static unsigned long
+zz9k_devpa(bp, off)
+struct zz9k_board *bp;
+unsigned long off;
+{
+    if (off < bp->bt->fb_offset)
+        return (unsigned long)bp->phys + off;
+    return (unsigned long)bp->phys + bp->bt->fb_phys + (off - bp->bt->fb_offset);
 }
 
 static void
@@ -1117,6 +1288,15 @@ struct zz9k_board *bp;
     return (bp->bt->flags & ZZ9K_BT_BLITTER) && zz9k_blit_on &&
         bp->color_mode == ZZ9K_COLOR_16BIT565 &&
         ((bp->width * zz9k_bpp(bp->color_mode)) & 3) == 0;
+}
+
+/* The kernel reaches the first rows rows of the screen (a mapped window maps only a part). */
+static int
+zz9k_kreach(bp, rows)
+struct zz9k_board *bp;
+unsigned long rows;
+{
+    return rows * bp->width * zz9k_bpp(bp->color_mode) <= bp->fb_kmap;
 }
 
 /* A non-empty rectangle wholly on the screen. */
@@ -1818,7 +1998,7 @@ struct zz9k_board *bp;
         return EINVAL;
     zz9k_con_w = bp->bt->con_width;
     zz9k_con_h = bp->bt->con_height;
-    if ((unsigned long)zz9k_con_w * zz9k_con_h * 2 > bp->fb_size)
+    if ((unsigned long)zz9k_con_w * zz9k_con_h * 2 > bp->fb_kmap)
         return ENOMEM;
 
     zz9k_set_mode_hw(bp, id, ZZ9K_CON_COLOR, 0);
@@ -1846,7 +2026,7 @@ struct zz9k_board *bp;
     zz9k_console_rows = zz9k_con_h / zz9k_console_font_h;
     zz9k_con_top = 0;
     zz9k_con_ringh = zz9k_con_h;
-    if ((unsigned long)(2 * zz9k_con_h + zz9k_console_font_h) * zz9k_con_w * 2 <= bp->fb_size)
+    if ((unsigned long)(2 * zz9k_con_h + zz9k_console_font_h) * zz9k_con_w * 2 <= bp->fb_kmap)
         zz9k_con_ringh = 2 * zz9k_con_h + zz9k_console_font_h;
     zz9k_console_col = 0;
     zz9k_console_row = 0;
@@ -2215,7 +2395,7 @@ struct uio *uiop;
 struct cred *cr;
 {
     int unit, error;
-    unsigned long count, end, pos, n;
+    unsigned long count, end, pos, n, limit;
     struct zz9k_board *bp;
 
     if (ZZ9K_ISINFO(dev))
@@ -2228,13 +2408,17 @@ struct cred *cr;
     count = uiop->uio_resid;
     if (count == 0)
         return 0;
+    /* the part the kernel reaches: the whole board, or what a mapped window maps */
+    limit = bp->bt->fb_offset + bp->fb_kmap;
+    if (limit > bp->board_size)
+        limit = bp->board_size;
     if (uiop->uio_offset < 0 ||
-        (unsigned long)uiop->uio_offset >= bp->board_size)
+        (unsigned long)uiop->uio_offset >= limit)
         return ENXIO;
 
     end = (unsigned long)uiop->uio_offset + count;
-    if (end > bp->board_size)
-        count = bp->board_size - (unsigned long)uiop->uio_offset;
+    if (end > limit)
+        count = limit - (unsigned long)uiop->uio_offset;
     if (direction == UIO_WRITE && count == 0)
         return ENXIO;
     /* the register block, as GETREG/SETREG, is privileged; the framebuffer is not */
@@ -2291,7 +2475,7 @@ int maxprot;
     if (offset < 0 || (unsigned long)offset >= bp->board_size)
         return -1;
 
-    return phystopfn(zz9k_devphys(bp, (unsigned long)offset));
+    return phystopfn(zz9k_devpa(bp, (unsigned long)offset));
 }
 
 /*
@@ -2614,7 +2798,7 @@ int *rvalp;
 
     switch (cmd) {
     case ZZ9KIOC_GETINFO:
-        u.info.base = (unsigned long)bp->base;
+        u.info.base = (unsigned long)bp->phys;
         u.info.board_size = bp->board_size;
         u.info.fb_offset = bp->bt->fb_offset;
         u.info.fb_size = bp->fb_size;
@@ -2676,9 +2860,9 @@ int *rvalp;
             *rvalp = 0;
             break;
         }
-        if (u.zf.offset >= bp->fb_size)
+        if (u.zf.offset >= bp->fb_kmap)
             return EINVAL;
-        limit = bp->fb_size - u.zf.offset;
+        limit = bp->fb_kmap - u.zf.offset;
         if (limit > u.zf.bytes)
             limit = u.zf.bytes;
         if (limit > ZZ9K_FILL_MAX)
@@ -2700,6 +2884,8 @@ int *rvalp;
             return EINVAL;
         if (bp->color_mode != ZZ9K_COLOR_16BIT565)
             return EINVAL;
+        if (!zz9k_can_blit(bp) && !zz9k_kreach(bp, (unsigned long)u.fr.y + u.fr.height))
+            return ENXIO;
         zz9k_fillrect(bp, u.fr.x, u.fr.y, u.fr.width, u.fr.height,
             (unsigned short)u.fr.color);
         break;
@@ -2722,6 +2908,10 @@ int *rvalp;
             return EINVAL;
         if (bp->color_mode != ZZ9K_COLOR_16BIT565)
             return EINVAL;
+        if (!zz9k_can_blit(bp) &&
+            (!zz9k_kreach(bp, (unsigned long)u.crct.src_y + u.crct.height) ||
+             !zz9k_kreach(bp, (unsigned long)u.crct.dst_y + u.crct.height)))
+            return ENXIO;
         zz9k_copyrect(bp, u.crct.src_x, u.crct.src_y, u.crct.dst_x,
             u.crct.dst_y, u.crct.width, u.crct.height);
         break;
@@ -2849,8 +3039,9 @@ MOD_DRV_WRAPPER(zz9000, zz9000_load, zz9000_unload, zz9000_halt,
 
 /*
  * The module's parameters replace the static kernel's patchable knobs (z3660rtg.keys):
- * blit (zz9k_blit_on), fixed (zz9k_fixed_on) and maxarea (zz9k_blit_maxarea, pixels;
- * 0 = the default, 8192).
+ * blit (zz9k_blit_on), fixed (zz9k_fixed_on), maxarea (zz9k_blit_maxarea, pixels;
+ * 0 = the default, 8192) and kvfb (zz9k_kvfb: MiB of the framebuffer mapped for the
+ * kernel when the board lies above the identity map).
  * Above the largest mode's area (2560x1440) a cap never splits, so that is maxarea's limit.
  */
 #define ZZ9K_MAXAREA_LIMIT  3686400L
@@ -2929,6 +3120,14 @@ char *params;
                 zz9k_fixed_on = 0;
             else
                 printf("zz9000: param fixed: bad value, kept %d\n", zz9k_fixed_on);
+#ifdef ZZ9K_CAN_MAP
+        } else if (zz9k_word(name, nlen, "kvfb")) {
+            v = zz9k_decimal(val, vlen);         /* 0: the line's default */
+            if (v < 0 || v > ZZ9K_KVFB_LIMIT)
+                printf("zz9000: param kvfb: bad value, kept %d\n", zz9k_kvfb);
+            else
+                zz9k_kvfb = v ? (int)v : ZZ9K_KVFB_DEFAULT;
+#endif
         } else if (zz9k_word(name, nlen, "maxarea")) {
             v = zz9k_decimal(val, vlen);
             if (v < 0)
@@ -2967,6 +3166,10 @@ zz9000_unload()
         monsw_unregister(bp->monsw_handle);
         bp->monsw_handle = -1;
     }
+#ifdef ZZ9K_CAN_MAP
+    bp->base = 0;
+    zz9k_unmap_all();                   /* a window mapped above the identity map */
+#endif
     return 0;
 }
 

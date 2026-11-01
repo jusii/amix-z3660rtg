@@ -222,3 +222,69 @@ kprintf(const char *fmt, ...)
         klogn = 0;
     return n;
 }
+
+/*
+ * The two ways a module maps a window above the identity map.  "Physical" 0x40000000 up
+ * is the host memory at KWIN (zz9k_host.c maps it), so a mapped board is the same fake
+ * board.  kmap_limit refuses larger framebuffer maps, as a kernel short of room would.
+ */
+#define KWIN        0x10000000UL
+#define KPHYS       0x40000000UL
+#ifndef NBPP
+#define NBPP        2048
+#endif
+#ifndef PG_V
+#define PG_V        0x00000001
+#endif
+static unsigned long kmap_limit = 0xffffffffUL;
+static int kmap_calls, kunmap_calls, kmap_regsfail, kmap_lastcm, kmap_lastflags;
+static unsigned long kmapped;           /* bytes mapped now */
+
+static char *
+kmap_phys(phys, len)
+unsigned long phys, len;
+{
+    if (phys < KPHYS || len > kmap_limit)
+        return (char *)0;
+    if (len <= 0x2000 && kmap_regsfail)
+        return (char *)0;
+    kmapped += len;
+    return (char *)(KWIN + (phys - KPHYS));
+}
+
+static char *
+dev_kvmap(phys, len, cm, flags)
+unsigned long phys, len;
+int cm, flags;
+{
+    ++kmap_calls;
+    kmap_lastcm = cm;
+    kmap_lastflags = flags;
+    return kmap_phys(phys, len);
+}
+
+static void
+dev_kvunmap(kva, len)
+char *kva;
+unsigned long len;
+{
+    ++kunmap_calls;
+    kmapped -= len;
+}
+
+static char *
+sptalloc(npages, mode, pfn, flag)
+int npages, mode, pfn, flag;
+{
+    ++kmap_calls;
+    return kmap_phys((unsigned long)pfn << 12, (unsigned long)npages * NBPP);
+}
+
+static void
+sptfree(kva, npages, flag)
+char *kva;
+int npages, flag;
+{
+    ++kunmap_calls;
+    kmapped -= (unsigned long)npages * NBPP;
+}

@@ -3,6 +3,7 @@
 #   module  -DZZ9K_MODULE -DZZ9K_TARGET_Z3660 -DZZ9K_MONSW (the loadable module)
 #   zz9000  the static ZZ9000-only driver (upstream's build)
 #   z3660   the static Z3660 driver
+#   module-k46map, module-k30map  the module with the board above the identity map
 # Needs a host cc that can map fixed low addresses (Linux).  Exit 0 = all passed.
 #
 # Copyright (c) 2026 Jussi Alanärä.  SPDX-License-Identifier: MIT
@@ -28,4 +29,7 @@ build() {
 build module -DZZ9K_MODULE -DZZ9K_TARGET_Z3660 -DZZ9K_MONSW
 build zz9000
 build z3660 -DZZ9K_TARGET_Z3660
+# the board above the identity map (autoconfig_rtg YES), mapped as each line maps it
+build module-k46map -DZZ9K_MODULE -DZZ9K_TARGET_Z3660 -DZZ9K_MONSW -DZZ9K_DEV_KVMAP -DZZ9K_HOST_MAPPED
+build module-k30map -DZZ9K_MODULE -DZZ9K_TARGET_Z3660 -DZZ9K_MONSW -DZZ9K_SPT_MAP -DZZ9K_HOST_MAPPED
 exit $rc

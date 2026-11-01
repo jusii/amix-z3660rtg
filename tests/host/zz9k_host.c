@@ -139,7 +139,11 @@ setup()
 #ifdef ZZ9K_TARGET_Z3660
     *reg32(ZZ9K_Z3660_REG_FW_VERSION) = 0x0103;
     kboards[0].pc = ZZ9K_Z3660_PRODUCT_PC;
+#ifdef ZZ9K_HOST_MAPPED
+    kboards[0].base = (long)KPHYS;      /* autoconfig_rtg YES: above the identity map */
+#else
     kboards[0].base = (long)WIN;
+#endif
     kboards[0].size = (long)WINSZ;
 #else
     *reg16(ZZ9K_REG_HW_VERSION) = 0x0002;
@@ -433,6 +437,7 @@ t_console_enable()
 {
 #ifdef ZZ9K_MODULE
     unsigned int mode;
+    unsigned long kmap;
 
     setmode(1280, 720);
     mode = *reg32(ZZ9K_Z3660_REG_MODE);
@@ -448,10 +453,11 @@ t_console_enable()
         "the console restarted, the hook kept");
     EQ(iocv(ZZ9KIOC_CONSOLE, ZZ9K_CONSOLE_DISABLE, RW, &kroot), 0, "DISABLE");
     CHECK(khook == 0, "the hook cleared");
-    zz9k_boards[0].fb_size = 1000;      /* too small for the console's mode */
+    kmap = zz9k_boards[0].fb_kmap;
+    zz9k_boards[0].fb_kmap = 1000;      /* too small for the console's mode */
     EQ(iocv(ZZ9KIOC_CONSOLE, ZZ9K_CONSOLE_ENABLE, RW, &kroot), ENOMEM, "start fails");
     CHECK(khook == 0, "the hook is rolled back");
-    zz9k_boards[0].fb_size = ZZ9K_Z3660_FB_MAX;
+    zz9k_boards[0].fb_kmap = kmap;
 #endif
 }
 
@@ -737,6 +743,7 @@ t_fill()
     unsigned long n = zz9k_boards[0].fb_size;
     int bad, i;
 
+    n = zz9k_boards[0].fb_kmap;         /* what the kernel reaches */
     memset(fb, 0x11, 3 * ZZ9K_FILL_MAX);
     f.offset = 3; f.bytes = 2 * ZZ9K_FILL_MAX; f.value = 0x1a5;
     EQ(ioc(ZZ9KIOC_FILL, 64, &f, sizeof f, RW, &kuser), 0, "FILL 2 MiB");
@@ -754,6 +761,70 @@ t_fill()
     EQ(ioc(ZZ9KIOC_FILL, 64, &f, sizeof f, RW, &kuser), 0, "FILL of nothing");
     EQ(krval, 0, "fills 0");
 }
+
+#ifdef ZZ9K_HOST_MAPPED
+static void
+t_mapped()
+{
+    struct zz9k_board *bp = &zz9k_boards[0];
+    struct zz9k_info info;
+    struct uio u;
+    char buf[16];
+
+    EQ(bp->phys, (long)KPHYS, "attached at its physical base above the identity map");
+    EQ(bp->mapped, 1, "through kernel mappings");
+    EQ(bp->base, (long)KWIN, "the register page mapped");
+    CHECK(bp->fb == (char *)(KWIN + ZZ9K_Z3660_FB_PHYS), "the framebuffer mapped from +0x200000");
+#ifdef ZZ9K_DEV_KVMAP
+    EQ(bp->fb_kmap, 8 * 0x100000L, "8 MiB of it, the k46 default");
+    EQ(kmap_lastcm, 0x60, "the framebuffer noncacheable");
+    EQ(kmap_lastflags, 1, "without sleeping");
+#else
+    EQ(bp->fb_kmap, 2 * 0x100000L, "2 MiB of it, the k30 default");
+#endif
+    EQ(kmapped, ZZ9K_Z3660_REG_SIZE + bp->fb_kmap, "only the register page and that part");
+    EQ(ioc(ZZ9KIOC_GETINFO, 64, &info, sizeof info, FREAD, &kuser), 0, "GETINFO");
+    EQ(info.base, (long)KPHYS, "GETINFO reports the physical base");
+    EQ(info.fb_size, ZZ9K_Z3660_FB_MAX, "and the whole framebuffer");
+    EQ(zz9000mmap(0, (off_t)0x1000000, 0), phystopfn(KPHYS + ZZ9K_Z3660_FB_PHYS + 0x1000000),
+        "mmap reaches past the kernel's part, by physical page");
+    u.uio_offset = (int)bp->fb_kmap; u.uio_resid = 4; u.uio_ubase = buf;
+    EQ(zz9000read(0, &u, &kroot), ENXIO, "read(2) stops at the kernel's part");
+    u.uio_offset = (int)bp->fb_kmap - 2; u.uio_resid = 4; u.uio_ubase = buf;
+    EQ(zz9000read(0, &u, &kroot), 0, "and reads up to it");
+    EQ(u.uio_resid, 2, "two bytes short");
+}
+
+/* re-probes with a kernel short of room; leaves the board mapped with kvfb 8 */
+static void
+t_mapped_short()
+{
+    struct zz9k_board *bp = &zz9k_boards[0];
+    int calls;
+
+    zz9000_unload();
+    EQ(kmapped, 0, "unload releases both mappings");
+    bp->base = 0;
+    kmap_limit = 3 * 0x100000UL;
+    zz9k_kvfb = 8;
+    EQ(zz9k_probe(0), 1, "a kernel with 3 MiB of room");
+    EQ(bp->fb_kmap, 2 * 0x100000L, "the framebuffer map halves until it fits");
+    EQ(iocv(ZZ9KIOC_CONSOLE, ZZ9K_CONSOLE_ENABLE, RW, &kroot), ENOMEM,
+        "a 1920x1080 console needs more than 2 MiB");
+    zz9000_unload();
+    kmap_limit = 0xffffffffUL;
+    kmap_regsfail = 1;
+    bp->base = 0;
+    calls = kunmap_calls;
+    EQ(zz9k_probe(0), 0, "the register page cannot be mapped: no board");
+    EQ(kmapped, 0, "nothing left mapped");
+    kmap_regsfail = 0;
+    zz9k_noboard[0] = 0;
+    bp->base = 0;
+    EQ(zz9k_probe(0), 1, "mapped again");
+    EQ(bp->fb_kmap, 8 * 0x100000L, "with kvfb 8, 8 MiB");
+}
+#endif
 
 /* last: re-probes the board */
 static void
@@ -962,6 +1033,10 @@ char **argv;
     zz9k_blit_maxarea = ZZ9K_BLIT_MAXAREA_DEFAULT;
 #else
     zz9000init();
+#endif
+#ifdef ZZ9K_HOST_MAPPED
+    t_mapped();
+    t_mapped_short();           /* ends mapped with 8 MiB, for the console tests below */
 #endif
     t_privilege();
     t_allowlist();

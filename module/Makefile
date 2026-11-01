@@ -29,7 +29,10 @@ OBJS     = zz9000.o
 DEPS     = $(MONSWMOD)
 EXTRA    = $(KIT)/stock/usr/sys/amiga/console/sunfont.o
 LOCALIZE = builtinfont
-CFLAGS   = -DZZ9K_MODULE -DZZ9K_TARGET_Z3660 -DZZ9K_MONSW $(ZZ9K_OPTS)
+# a board above the identity map is mapped: dev_kvmap on k46 (cache class set), sptalloc
+# on k30 (zz9000.c, zz9k_attach_mapped)
+CFLAGS   = -DZZ9K_MODULE -DZZ9K_TARGET_Z3660 -DZZ9K_MONSW $(ZZ9K_OPTS) \
+	   $(if $(filter k46,$(LINE)),-DZZ9K_DEV_KVMAP,-DZZ9K_SPT_MAP)
 
 include $(KIT)/mk/module.mk
 
