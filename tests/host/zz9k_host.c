@@ -790,6 +790,21 @@ t_fixed()
 }
 
 static void
+t_layout()
+{
+    struct zz9k_autocon_dump d;
+
+    EQ((char *)&d.entry[0] - (char *)&d, 4, "autocon entries at offset 4");
+    EQ(sizeof d, 324, "autocon dump 324 bytes");
+    EQ(sizeof(struct zz9k_blit), 20, "a BLITS record 20 bytes");
+    EQ(sizeof(struct zz9k_fbinfo), 44, "fbinfo 44 bytes");
+    EQ(sizeof(struct zz9k_info), 32, "info 32 bytes");
+    memset(uspace + 64, 0x55, sizeof d);
+    EQ(ioc(ZZ9KIOC_GETAUTOCON, 64, &d, sizeof d, FREAD, &kuser), 0, "GETAUTOCON");
+    EQ(d.pad, 0, "the padding is written as 0");
+}
+
+static void
 t_rect()
 {
     struct zz9k_board *bp = &zz9k_boards[0];
@@ -871,6 +886,7 @@ char **argv;
     t_cpu_loops();
     t_fill();
     t_rect();
+    t_layout();
     t_fixed();
     printf("%s: %d passed, %d failed\n", ZZ9K_HOST_CONFIG, npass, nfail);
     return nfail != 0;

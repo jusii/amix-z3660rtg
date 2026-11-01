@@ -714,6 +714,7 @@ struct zz9k_autocon_dump *dump;
     struct zz9k_configdev *cd;
 
     dump->count = ZZ9K_MAX_AUTOCON;
+    dump->pad = 0;
     for (i = 0; i < ZZ9K_MAX_AUTOCON; ++i) {
         cd = &bootinfo.autocon[i];
         dump->entry[i].manufacturer = cd->er_manufacturer;

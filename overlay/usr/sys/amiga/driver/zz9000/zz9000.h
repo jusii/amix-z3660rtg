@@ -139,8 +139,11 @@ struct zz9k_autocon_entry {
     unsigned short slot_size;
 };
 
+/* entry[] at offset 4 and 324 bytes in all, as the kernel's compiler lays it out; the
+ * padding is spelled out so a compiler that aligns longs to 2 agrees */
 struct zz9k_autocon_dump {
     unsigned short count;
+    unsigned short pad;
     struct zz9k_autocon_entry entry[ZZ9K_MAX_AUTOCON];
 };
 struct zz9k_info {
