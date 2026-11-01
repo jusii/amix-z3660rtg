@@ -2516,7 +2516,7 @@ int *rvalp;
             return EFAULT;
         id = zz9k_mode_id(bp, sm.width, sm.height);
         bpp = zz9k_bpp(sm.color_mode);
-        if (id == 0xffff || bpp == 0)
+        if (id == 0xffff || bpp == 0 || sm.scale_mode > ZZ9K_SCALE_MAX)
             return EINVAL;
         if ((unsigned long)sm.width * sm.height * bpp > bp->fb_size)
             return ENOMEM;

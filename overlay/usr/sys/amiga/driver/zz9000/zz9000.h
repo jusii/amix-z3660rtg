@@ -177,6 +177,9 @@ struct zz9k_fbinfo {
     unsigned short alpha_shift;
 };
 
+/* scale_mode: bit 0 doubles horizontally, bit 1 vertically; more is EINVAL */
+#define ZZ9K_SCALE_MAX         3
+
 struct zz9k_mode {
     unsigned short width;
     unsigned short height;

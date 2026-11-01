@@ -113,3 +113,9 @@ native screen meanwhile, and the monitor switch is left alone. `CONPUTS` gives `
 the console is paused. The last close of `/dev/zz9000` resumes the console: its mode, a
 cleared screen, the monitor on the RTG. Before 1.1 the console kept drawing at its own stride
 into the client's framebuffer and switched the monitor on every write.
+
+## SETMODE checks scale_mode
+
+`scale_mode` is bit 0 (double horizontally) and bit 1 (double vertically). A value above
+`ZZ9K_SCALE_MAX` (3) gives `EINVAL`. Before 1.1 the high bits were shifted into the MODE
+register unchecked.

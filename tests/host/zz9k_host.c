@@ -166,6 +166,17 @@ t_privilege()
         "SETMODE on a read-only descriptor");
     EQ(ioc(ZZ9KIOC_SETMODE, 64, &m, sizeof m, RW, &kuser), 0,
         "SETMODE, read-write, unprivileged");
+    m.scale_mode = 3;
+    EQ(ioc(ZZ9KIOC_SETMODE, 64, &m, sizeof m, RW, &kuser), 0, "scale_mode 3");
+#ifdef ZZ9K_TARGET_Z3660
+    EQ((*reg32(ZZ9K_Z3660_REG_MODE) >> 12) & 0xf, 3, "scale in MODE bits 12-15");
+#endif
+    m.scale_mode = 4;
+    EQ(ioc(ZZ9KIOC_SETMODE, 64, &m, sizeof m, RW, &kuser), EINVAL, "scale_mode 4 refused");
+    m.scale_mode = 0x10;
+    EQ(ioc(ZZ9KIOC_SETMODE, 64, &m, sizeof m, RW, &kuser), EINVAL,
+        "a scale_mode that would spill into the next field refused");
+    m.scale_mode = 0;
     zr.offset = 0x0a; zr.value = 0;
 #ifdef ZZ9K_TARGET_Z3660
     zr.offset = ZZ9K_Z3660_REG_PAN;
