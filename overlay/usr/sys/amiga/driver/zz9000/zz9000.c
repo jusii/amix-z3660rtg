@@ -312,6 +312,19 @@ static struct zz9k_modetab zz9k_modes_zz9000[] = {
     { 0, 0, 0 }
 };
 
+/* the ZZ9000's video and blitter registers, for GETREG/SETREG (zz9000.h) */
+static struct zz9k_regwin zz9k_regwin_zz9000[] = {
+    { ZZ9K_REG_HW_VERSION, ZZ9K_REG_HW_VERSION + 2, 0 },
+    { ZZ9K_REG_MODE, ZZ9K_REG_MODE + 2, 1 },
+    { ZZ9K_REG_PAN_HI, ZZ9K_REG_PAN_LO + 2, 1 },
+    { ZZ9K_REG_BLITTER_X1, ZZ9K_REG_BLITTER_OP_COPYRECT + 2, 1 },
+    { ZZ9K_REG_BLITTER_SRC_HI, ZZ9K_REG_BLITTER_SRC_PITCH + 2, 1 },
+    { ZZ9K_REG_VBLANK_STATUS, ZZ9K_REG_VBLANK_STATUS + 2, 0 },
+    { ZZ9K_REG_BLITTER_SPLIT_POS, ZZ9K_REG_BLITTER_SPLIT_POS + 2, 1 },
+    { ZZ9K_REG_FW_VERSION, ZZ9K_REG_FW_VERSION + 2, 0 },
+    { 0, 0, 0 }
+};
+
 #ifdef ZZ9K_TARGET_Z3660
 /*
  * Z3660 register file: 32-bit words from 0x100 (zz9000.h).  No HW_VERSION,
@@ -360,6 +373,24 @@ static struct zz9k_modetab zz9k_modes_z3660[] = {
     { 1366, 768, ZZ9K_Z3660_MODE_1366x768 },
     { 0, 0, 0 }
 };
+
+/*
+ * The Z3660's video and blitter words, for GETREG/SETREG.  Left out: ZZ_CONFIG 0x104 (the
+ * interrupt enables the ethernet driver owns), FILLTEMPLATE 0x13C (its template comes from
+ * an address), 0x150-0x178 (operations on addresses), 0x180-0x184 (DMA), 0x190-0x1AC (the
+ * ethernet mailbox, FW_VERSION among it: GETINFO reports that), and everything from 0x1B0
+ * (USB, decoder, audio, the firmware's own settings).
+ */
+static struct zz9k_regwin zz9k_regwin_z3660[] = {
+    { ZZ9K_Z3660_REG_MODE, ZZ9K_Z3660_REG_MODE + 4, 1 },
+    { ZZ9K_Z3660_REG_SPRITE_X, ZZ9K_Z3660_REG_COPYRECT + 4, 1 },
+    { ZZ9K_Z3660_REG_BLIT_SRC, ZZ9K_Z3660_REG_SRC_PITCH + 4, 1 },
+    { ZZ9K_Z3660_REG_VBLANK, ZZ9K_Z3660_REG_VBLANK + 4, 0 },
+    { ZZ9K_Z3660_REG_SPLIT_POS, ZZ9K_Z3660_REG_SPLIT_POS + 4, 1 },
+    { ZZ9K_Z3660_REG_FW_BETA, ZZ9K_Z3660_REG_FW_ALFA + 4, 0 },
+    { ZZ9K_Z3660_REG_MONITOR_SWITCH, ZZ9K_Z3660_REG_MONITOR_SWITCH + 4, 0 },
+    { 0, 0, 0 }
+};
 #endif /* ZZ9K_TARGET_Z3660 */
 
 /*
@@ -396,14 +427,16 @@ static struct zz9k_boardtab zz9k_boardtab[] = {
       ZZ9K_FB_OFFSET, ZZ9K_FB_OFFSET, 0, ZZ9K_Z2_RESERVED_TAIL, ZZ9K_REG_SIZE,
       2, zz9k_regoff_zz9000, zz9k_modes_zz9000,
       ZZ9K_CON_WIDTH, ZZ9K_CON_HEIGHT,
-      ZZ9K_FW_VER_MIN, 0, 2, ZZ9K_PRODUCT_Z2, ZZ9K_BT_BLIT_ZZ9000 },
+      ZZ9K_FW_VER_MIN, 0, 2, ZZ9K_PRODUCT_Z2, ZZ9K_BT_BLIT_ZZ9000,
+      zz9k_regwin_zz9000 },
 #ifndef ZZ9K_BENCH_Z3
     { "Zorro III product", "configure card as Zorro II product 3 for AMIX",
       ZZ9K_PRODUCT_PC_Z3, 0, 0,
       ZZ9K_FB_OFFSET, ZZ9K_FB_OFFSET, 0, ZZ9K_Z2_RESERVED_TAIL, ZZ9K_REG_SIZE,
       2, zz9k_regoff_zz9000, zz9k_modes_zz9000,
       ZZ9K_CON_WIDTH, ZZ9K_CON_HEIGHT,
-      ZZ9K_FW_VER_MIN, 0, 3, ZZ9K_PRODUCT_Z3, ZZ9K_BT_REJECT }
+      ZZ9K_FW_VER_MIN, 0, 3, ZZ9K_PRODUCT_Z3, ZZ9K_BT_REJECT,
+      zz9k_regwin_zz9000 }
 #else
     /*
      * Bench aid, not a supported configuration: amiberry can place its
@@ -419,7 +452,8 @@ static struct zz9k_boardtab zz9k_boardtab[] = {
       ZZ9K_FB_OFFSET, ZZ9K_FB_OFFSET, ZZ9K_Z3660_FB_MAX, 0, ZZ9K_REG_SIZE,
       2, zz9k_regoff_zz9000, zz9k_modes_zz9000,
       ZZ9K_CON_WIDTH, ZZ9K_CON_HEIGHT,
-      ZZ9K_FW_VER_MIN, 0, 3, ZZ9K_PRODUCT_Z3, ZZ9K_BT_BLIT_ZZ9000 }
+      ZZ9K_FW_VER_MIN, 0, 3, ZZ9K_PRODUCT_Z3, ZZ9K_BT_BLIT_ZZ9000,
+      zz9k_regwin_zz9000 }
 #endif /* ZZ9K_BENCH_Z3 */
 #ifdef ZZ9K_TARGET_Z3660
     /*
@@ -441,7 +475,7 @@ static struct zz9k_boardtab zz9k_boardtab[] = {
       4, zz9k_regoff_z3660, zz9k_modes_z3660,
       ZZ9K_Z3660_CON_W, ZZ9K_Z3660_CON_H,
       ZZ9K_Z3660_FW_MIN, ZZ9K_Z3660_FW_MAJOR, 3, 1,
-      ZZ9K_BT_NOCAPTURE | ZZ9K_BT_BLIT_Z3660 }
+      ZZ9K_BT_NOCAPTURE | ZZ9K_BT_BLIT_Z3660, zz9k_regwin_z3660 }
     /*
      * The same board reached by its fixed base, for a machine whose
      * AutoConfig table does not list it.  Device space is the framebuffer
@@ -456,7 +490,8 @@ static struct zz9k_boardtab zz9k_boardtab[] = {
       4, zz9k_regoff_z3660, zz9k_modes_z3660,
       ZZ9K_Z3660_CON_W, ZZ9K_Z3660_CON_H,
       ZZ9K_Z3660_FW_MIN, ZZ9K_Z3660_FW_MAJOR, 3, 1,
-      ZZ9K_BT_AGAGATE | ZZ9K_BT_NOCAPTURE | ZZ9K_BT_BLIT_Z3660 }
+      ZZ9K_BT_AGAGATE | ZZ9K_BT_NOCAPTURE | ZZ9K_BT_BLIT_Z3660,
+      zz9k_regwin_z3660 }
 #endif /* ZZ9K_TARGET_Z3660 */
 };
 
@@ -1975,6 +2010,26 @@ int *rvalp;
 }
 
 /*
+ * A GETREG (set 0) or SETREG (set 1) of the 16-bit lane at off: inside the page, even, and
+ * in one of the row's windows (zz9000.h, struct zz9k_regwin).
+ */
+static int
+zz9k_reg_allowed(bp, off, set)
+struct zz9k_board *bp;
+unsigned long off;
+int set;
+{
+    struct zz9k_regwin *w;
+
+    if (off >= bp->bt->reg_size || (off & 1) || !bp->bt->regwin)
+        return 0;
+    for (w = bp->bt->regwin; w->hi; ++w)
+        if (off >= w->lo && off + 2 <= w->hi)
+            return !set || w->set;
+    return 0;
+}
+
+/*
  * Who may issue what.  A command that changes the board, the screen or the console needs a
  * descriptor open for writing (EBADF otherwise).  Raw register access, the console switch,
  * the probe and the capture switch need privilege as well (drv_priv, EPERM): the register
@@ -2217,12 +2272,14 @@ int *rvalp;
      * HI/LO convention: a poke of the HI lane (offset & 2 == 0) is
      * latched, a poke of the LO lane writes the whole 32-bit register at
      * once -- a read-modify-write would not compose on the Z3660, whose
-     * MODE and blitter registers read as all ones.
+     * MODE and blitter registers read as all ones.  Only the row's own
+     * registers are reached (zz9k_reg_allowed); SETREG empties the blitter
+     * cache, since a poke may change a register the cache holds.
      */
     case ZZ9KIOC_GETREG:
         if (copyin((caddr_t)arg, (caddr_t)&zr, sizeof zr))
             return EFAULT;
-        if (zr.offset >= bp->bt->reg_size || (zr.offset & 1))
+        if (!zz9k_reg_allowed(bp, zr.offset, 0))
             return EINVAL;
         if (bp->bt->regw == 4) {
             lane = *((volatile unsigned long *)((char *)bp->base +
@@ -2237,8 +2294,9 @@ int *rvalp;
     case ZZ9KIOC_SETREG:
         if (copyin((caddr_t)arg, (caddr_t)&zr, sizeof zr))
             return EFAULT;
-        if (zr.offset >= bp->bt->reg_size || (zr.offset & 1))
+        if (!zz9k_reg_allowed(bp, zr.offset, 1))
             return EINVAL;
+        ZZ9K_BLIT_FORGET(bp);           /* the poke may change what the cache holds */
         if (bp->bt->regw == 4) {
             if (zr.offset & 2) {
                 lane = ((unsigned long)bp->reg_hi << 16) | zr.value;

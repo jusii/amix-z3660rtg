@@ -286,6 +286,7 @@ struct zz9k_conputs {
 
 #define ZZ9K_Z3660_REG_MODE        0x100
 #define ZZ9K_Z3660_REG_CONFIG      0x104
+#define ZZ9K_Z3660_REG_SPRITE_X    0x108
 #define ZZ9K_Z3660_REG_X1          0x110
 #define ZZ9K_Z3660_REG_Y1          0x114
 #define ZZ9K_Z3660_REG_X2          0x118
@@ -369,6 +370,19 @@ struct zz9k_modetab {
     unsigned short id;
 };
 
+/*
+ * GETREG/SETREG reach only a row's own registers: byte ranges [lo, hi) of the
+ * register page, each readable, and writable when `set` is nonzero.  The rest
+ * of the page -- other drivers' registers (the Z3660's ethernet at 0x190-0x1AC
+ * and ZZ_CONFIG 0x104, the ZZ9000's ethernet and USB), firmware settings --
+ * is refused with EINVAL.  A table ends with hi 0.
+ */
+struct zz9k_regwin {
+    unsigned short lo;
+    unsigned short hi;
+    unsigned short set;
+};
+
 struct zz9k_boardtab {
     char *name;                   /* as printed by the driver */
     char *advice;                 /* printed after a ZZ9K_BT_REJECT match */
@@ -390,6 +404,7 @@ struct zz9k_boardtab {
     unsigned short zorro;         /* GETINFO.zorro */
     unsigned short product;       /* GETINFO.product */
     unsigned short flags;         /* ZZ9K_BT_* */
+    struct zz9k_regwin *regwin;   /* what GETREG/SETREG may reach */
 };
 
 #endif /* ZZ9000_H */

@@ -200,6 +200,71 @@ t_privilege()
 #endif
 }
 
+static int
+regop(cmd, off, value)
+int cmd;
+unsigned int off, value;
+{
+    struct zz9k_reg zr;
+
+    zr.offset = (unsigned short)off;
+    zr.value = (unsigned short)value;
+    return ioc(cmd, 64, &zr, sizeof zr, RW, &kroot);
+}
+
+static void
+t_allowlist()
+{
+    struct zz9k_board *bp = &zz9k_boards[0];
+    unsigned int off;
+    int bad;
+
+#ifdef ZZ9K_TARGET_Z3660
+    /* never: ZZ_CONFIG and the ethernet mailbox, either lane, either way */
+    bad = 0;
+    for (off = 0x104; off < 0x108; off += 2)
+        bad += regop(ZZ9KIOC_SETREG, off, 0) != EINVAL || regop(ZZ9KIOC_GETREG, off, 0) != EINVAL;
+    for (off = 0x190; off < 0x1b0; off += 2)
+        bad += regop(ZZ9KIOC_SETREG, off, 0) != EINVAL || regop(ZZ9KIOC_GETREG, off, 0) != EINVAL;
+    EQ(bad, 0, "0x104 and 0x190-0x1AC refused for GETREG and SETREG");
+    for (off = 0x1b0, bad = 0; off < 0x1000; off += 2)
+        if (off < 0x280 || off >= 0x288)
+            if (off < 0x318 || off >= 0x31c)
+                bad += regop(ZZ9KIOC_SETREG, off, 0) != EINVAL;
+    EQ(bad, 0, "nothing from 0x1B0 is writable");
+    EQ(regop(ZZ9KIOC_SETREG, 0x1000, 0), EINVAL, "beyond the page");
+    EQ(regop(ZZ9KIOC_SETREG, 0x121, 0), EINVAL, "odd offset");
+    EQ(regop(ZZ9KIOC_SETREG, 0x13c, 0), EINVAL, "FILLTEMPLATE");
+    EQ(regop(ZZ9KIOC_GETREG, 0x318, 0), 0, "monitor_switch readable");
+    EQ(regop(ZZ9KIOC_SETREG, 0x318, 0), EINVAL, "monitor_switch not writable");
+    EQ(regop(ZZ9KIOC_GETREG, 0x17c, 0), 0, "VBLANK readable");
+    /* PAN through the HI/LO composition: one 32-bit write */
+    *reg32(0x120) = 0;
+    EQ(regop(ZZ9KIOC_SETREG, 0x120, 0x0012), 0, "PAN HI latched");
+    EQ(*reg32(0x120), 0, "a HI poke writes nothing");
+    bp->blitvalid = ~0UL;
+    EQ(regop(ZZ9KIOC_SETREG, 0x122, 0x3400), 0, "PAN LO writes");
+    EQ(*reg32(0x120), 0x00123400, "the whole word written");
+    EQ(bp->blitvalid, 0, "SETREG empties the blitter cache");
+#else
+    bad = 0;
+    for (off = 0x04; off < 0x0a; off += 2)
+        bad += regop(ZZ9KIOC_SETREG, off, 0) != EINVAL;
+    for (off = 0x60; off < 0xc0; off += 2)
+        bad += regop(ZZ9KIOC_SETREG, off, 0) != EINVAL || regop(ZZ9KIOC_GETREG, off, 0) != EINVAL;
+    for (off = 0xc2; off < 0x2000; off += 2)
+        bad += regop(ZZ9KIOC_SETREG, off, 0) != EINVAL;
+    EQ(bad, 0, "CONFIG, ethernet/USB and the capture block refused");
+    EQ(regop(ZZ9KIOC_GETREG, ZZ9K_REG_FW_VERSION, 0), 0, "FW_VERSION readable");
+    EQ(regop(ZZ9KIOC_SETREG, ZZ9K_REG_FW_VERSION, 0), EINVAL, "FW_VERSION not writable");
+    bp->blitvalid = ~0UL;
+    EQ(regop(ZZ9KIOC_SETREG, ZZ9K_REG_BLITTER_X2, 1920), 0, "X2 writable (the pan fix)");
+    EQ(*reg16(ZZ9K_REG_BLITTER_X2), 1920, "X2 written");
+    EQ(bp->blitvalid, 0, "SETREG empties the blitter cache");
+    EQ(regop(ZZ9KIOC_SETREG, ZZ9K_REG_PAN_LO, 0), 0, "PAN_LO writable");
+#endif
+}
+
 static void
 t_rect()
 {
@@ -260,6 +325,7 @@ char **argv;
     zz9000init();
 #endif
     t_privilege();
+    t_allowlist();
     t_rect();
     printf("%s: %d passed, %d failed\n", ZZ9K_HOST_CONFIG, npass, nfail);
     return nfail != 0;
