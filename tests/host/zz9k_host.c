@@ -266,6 +266,26 @@ t_allowlist()
 }
 
 static void
+t_band()
+{
+    long keep = zz9k_blit_maxarea;
+
+    EQ(ZZ9K_BLIT_MAXAREA_DEFAULT, 8192, "the default band");
+    zz9k_blit_maxarea = 0;
+    EQ(zz9k_band(1920, 1080), 4, "0 means the default: 1920 px rows, 4 per band");
+    zz9k_blit_maxarea = ZZ9K_BLIT_MAXAREA_DEFAULT;
+    EQ(zz9k_band(1920, 1080), 4, "1920x1080: 4 rows per band");
+    EQ(zz9k_band(100, 81), 81, "8100 px fits one band");
+    EQ(zz9k_band(100, 82), 81, "8200 px splits at 81 rows");
+    EQ(zz9k_band(2560, 1440), 3, "2560 px rows");
+    zz9k_blit_maxarea = 100;
+    EQ(zz9k_band(2560, 2), 1, "at least one row");
+    zz9k_blit_maxarea = 3686400L;
+    EQ(zz9k_band(2560, 1440), 1440, "the limit never splits");
+    zz9k_blit_maxarea = keep;
+}
+
+static void
 t_rect()
 {
     struct zz9k_board *bp = &zz9k_boards[0];
@@ -319,13 +339,16 @@ char **argv;
         printf("FAIL: the module did not load\n%s", klog);
         return 1;
     }
+    EQ(zz9k_blit_maxarea, 8192, "maxarea defaults to 8192");
     t_params();
     zz9k_blit_on = 1;
+    zz9k_blit_maxarea = ZZ9K_BLIT_MAXAREA_DEFAULT;
 #else
     zz9000init();
 #endif
     t_privilege();
     t_allowlist();
+    t_band();
     t_rect();
     printf("%s: %d passed, %d failed\n", ZZ9K_HOST_CONFIG, npass, nfail);
     return nfail != 0;

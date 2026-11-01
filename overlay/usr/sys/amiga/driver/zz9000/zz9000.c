@@ -414,12 +414,16 @@ static struct zz9k_regwin zz9k_regwin_z3660[] = {
 
 /*
  * Kernel-patchable: zz9k_blit_on 0 turns the blitter off without a relink;
- * zz9k_blit_maxarea > 0 splits an operation into bands of at most that many
- * pixels, since the CPU sits in the stalled register write for the whole
- * operation and takes no interrupt meanwhile (0 = no split).
+ * zz9k_blit_maxarea splits an operation into bands of at most that many pixels,
+ * since the CPU sits in the stalled register write for the whole operation and
+ * takes no interrupt meanwhile.  The default, 8192 px, is about 0.16 ms at the
+ * firmware's measured ~50,000 px/ms: under one character time at 38400 baud,
+ * where a full-screen operation (~20 ms) lost 42-44 % of serial input.  0 means
+ * the default; a value of a screen's area or more never splits.
  */
+#define ZZ9K_BLIT_MAXAREA_DEFAULT  8192L
 int zz9k_blit_on = 1;
-long zz9k_blit_maxarea = 0;
+long zz9k_blit_maxarea = ZZ9K_BLIT_MAXAREA_DEFAULT;
 
 static struct zz9k_boardtab zz9k_boardtab[] = {
     { "Zorro II board", "",
@@ -1010,11 +1014,26 @@ unsigned long x, y, w, h;
         w <= bp->width - x && h <= bp->height - y;
 }
 
+/* Rows per band for a w x h operation: at most zz9k_blit_maxarea pixels, at least one row. */
+static int
+zz9k_band(w, h)
+int w, h;
+{
+    long area;
+    int band;
+
+    area = zz9k_blit_maxarea > 0 ? zz9k_blit_maxarea : ZZ9K_BLIT_MAXAREA_DEFAULT;
+    if (w <= 0 || (long)w * h <= area)
+        return h;
+    band = (int)(area / w);
+    return band < 1 ? 1 : band;
+}
+
 /*
- * One checked fill (sx < 0) or copy on the blitter, in bands of at most
- * zz9k_blit_maxarea pixels.  A copy moving down runs its bands bottom-up,
- * so no band overwrites a source row a later band still reads; inside a
- * band the firmware orders rows and columns itself (gfx.c copy_rect_nomask).
+ * One checked fill (sx < 0) or copy on the blitter, in bands (zz9k_band).  A
+ * copy moving down runs its bands bottom-up, so no band overwrites a source
+ * row a later band still reads; inside a band the firmware orders rows and
+ * columns itself (gfx.c copy_rect_nomask).
  */
 static void
 zz9k_blit_run(bp, sx, sy, dx, dy, w, h, color)
@@ -1024,12 +1043,7 @@ unsigned short color;
 {
     int band, top, n;
 
-    band = h;
-    if (zz9k_blit_maxarea > 0 && (long)w * h > zz9k_blit_maxarea) {
-        band = (int)(zz9k_blit_maxarea / w);
-        if (band < 1)
-            band = 1;
-    }
+    band = zz9k_band(w, h);
     if (sx >= 0 && dy > sy) {
         for (top = h; top > 0; top -= n) {
             n = (top < band) ? top : band;
@@ -2388,8 +2402,8 @@ MOD_DRV_WRAPPER(zz9000, zz9000_load, zz9000_unload, zz9000_halt,
 
 /*
  * The module's parameters replace the static kernel's patchable knobs (z3660rtg.keys):
- * blit (zz9k_blit_on) and maxarea (zz9k_blit_maxarea, pixels; 0 = no split).  Above the
- * largest mode's area (2560x1440) a cap never splits, so that is maxarea's limit.
+ * blit (zz9k_blit_on) and maxarea (zz9k_blit_maxarea, pixels; 0 = the default, 8192).
+ * Above the largest mode's area (2560x1440) a cap never splits, so that is maxarea's limit.
  */
 #define ZZ9K_MAXAREA_LIMIT  3686400L
 
