@@ -257,6 +257,7 @@ static int zz9k_console_font_w;
 static int zz9k_console_font_h;
 static int zz9k_console_cursor_on;
 static int zz9k_console_esc;
+static int zz9k_console_priv;      /* the sequence has a private marker or intermediate */
 static int zz9k_console_argc;
 static int zz9k_console_arg;
 static int zz9k_console_args[4];
@@ -1600,15 +1601,39 @@ zz9k_console_sgr()
     }
 }
 
+/* end the escape sequence: back to text */
+static void
+zz9k_console_esc_reset()
+{
+    zz9k_console_esc = ZZ9K_ESC_NONE;
+    zz9k_console_priv = 0;
+    zz9k_console_arg = 0;
+    zz9k_console_argc = 0;
+    zz9k_console_args[0] = 0;
+    zz9k_console_args[1] = 0;
+    zz9k_console_args[2] = 0;
+    zz9k_console_args[3] = 0;
+}
+
+/*
+ * One byte of a control sequence (ESC [ ...), as ECMA-48 lays it out: parameter bytes 0x30-
+ * 0x3F, then intermediate bytes 0x20-0x2F, then one final byte 0x40-0x7E.  Digits and ';'
+ * are the parameters this renderer knows; a private marker ('<' '=' '>' '?', or ':') or an
+ * intermediate makes the sequence one it does not know, and its final byte then ends it
+ * with no effect (ESC [ ? 25 l, hide the cursor, used to print "25l").  A number stops
+ * growing at four digits.  Any other byte abandons the sequence.
+ */
 static void
 zz9k_console_csi(c)
 unsigned char c;
 {
     int n;
+    int *a;
 
     if (c >= '0' && c <= '9') {
-        zz9k_console_args[zz9k_console_arg] =
-            zz9k_console_args[zz9k_console_arg] * 10 + c - '0';
+        a = &zz9k_console_args[zz9k_console_arg];
+        if (*a < 1000)
+            *a = *a * 10 + c - '0';
         return;
     }
     if (c == ';') {
@@ -1616,6 +1641,14 @@ unsigned char c;
             ++zz9k_console_arg;
         if (zz9k_console_arg > zz9k_console_argc)
             zz9k_console_argc = zz9k_console_arg;
+        return;
+    }
+    if ((c >= 0x3a && c <= 0x3f) || (c >= 0x20 && c <= 0x2f)) {
+        zz9k_console_priv = 1;
+        return;
+    }
+    if (c < 0x40 || c > 0x7e || zz9k_console_priv) {
+        zz9k_console_esc_reset();
         return;
     }
     if (zz9k_console_arg > zz9k_console_argc)
@@ -1668,14 +1701,31 @@ unsigned char c;
         zz9k_console_sgr();
         break;
     }
+    zz9k_console_esc_reset();
+}
 
-    zz9k_console_esc = ZZ9K_ESC_NONE;
-    zz9k_console_arg = 0;
-    zz9k_console_argc = 0;
-    zz9k_console_args[0] = 0;
-    zz9k_console_args[1] = 0;
-    zz9k_console_args[2] = 0;
-    zz9k_console_args[3] = 0;
+/* A C0 control (or DEL): the four the console acts on; the rest draw nothing. */
+static void
+zz9k_console_ctl(c)
+unsigned char c;
+{
+    switch (c) {
+    case '\r':
+        zz9k_console_col = 0;
+        break;
+    case '\n':
+        zz9k_console_newline();
+        break;
+    case '\t':
+        zz9k_console_col = (zz9k_console_col + 8) & ~7;
+        if (zz9k_console_col >= zz9k_console_cols)
+            zz9k_console_newline();
+        break;
+    case '\b':
+        if (zz9k_console_col)
+            --zz9k_console_col;
+        break;
+    }
 }
 
 static void
@@ -1688,21 +1738,23 @@ unsigned char c;
     zz9k_console_cursor(0);
 
     if (zz9k_console_esc == ZZ9K_ESC_CSI) {
-        zz9k_console_csi(c);
+        if (c == 0x1b)
+            zz9k_console_esc = ZZ9K_ESC_ESC;    /* a new escape abandons this one */
+        else if (c == 0x18 || c == 0x1a)        /* CAN, SUB */
+            zz9k_console_esc_reset();
+        else if (c < 0x20)
+            zz9k_console_ctl(c);                /* a control inside a sequence acts */
+        else
+            zz9k_console_csi(c);
         zz9k_console_cursor(1);
         return;
     }
     if (zz9k_console_esc == ZZ9K_ESC_ESC) {
-        if (c == '[') {
+        zz9k_console_esc_reset();
+        if (c == '[')
             zz9k_console_esc = ZZ9K_ESC_CSI;
-            zz9k_console_arg = 0;
-            zz9k_console_argc = 0;
-            zz9k_console_args[0] = 0;
-            zz9k_console_args[1] = 0;
-            zz9k_console_args[2] = 0;
-            zz9k_console_args[3] = 0;
-        } else
-            zz9k_console_esc = ZZ9K_ESC_NONE;
+        else if (c == 0x1b)
+            zz9k_console_esc = ZZ9K_ESC_ESC;
         zz9k_console_cursor(1);
         return;
     }
@@ -1711,28 +1763,8 @@ unsigned char c;
         zz9k_console_cursor(1);
         return;
     }
-
-    if (c == '\r') {
-        zz9k_console_col = 0;
-        zz9k_console_cursor(1);
-        return;
-    }
-    if (c == '\n') {
-        zz9k_console_newline();
-        zz9k_console_cursor(1);
-        return;
-    }
-    if (c == '\t') {
-        zz9k_console_col = (zz9k_console_col + 8) & ~7;
-        if (zz9k_console_col >= zz9k_console_cols) {
-            zz9k_console_newline();
-        }
-        zz9k_console_cursor(1);
-        return;
-    }
-    if (c == '\b') {
-        if (zz9k_console_col)
-            --zz9k_console_col;
+    if (c < 0x20 || c == 0x7f) {
+        zz9k_console_ctl(c);
         zz9k_console_cursor(1);
         return;
     }
@@ -1786,13 +1818,7 @@ struct zz9k_board *bp;
     zz9k_console_col = 0;
     zz9k_console_row = 0;
     zz9k_console_cursor_on = 0;
-    zz9k_console_esc = ZZ9K_ESC_NONE;
-    zz9k_console_arg = 0;
-    zz9k_console_argc = 0;
-    zz9k_console_args[0] = 0;
-    zz9k_console_args[1] = 0;
-    zz9k_console_args[2] = 0;
-    zz9k_console_args[3] = 0;
+    zz9k_console_esc_reset();
     zz9k_console_reset_attr();
     zz9k_console_paused = 0;
     zz9k_console_clear();

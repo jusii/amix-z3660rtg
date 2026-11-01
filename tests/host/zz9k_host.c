@@ -48,6 +48,7 @@ struct zz9k_font *builtinfont[1];
 #define RW      (FREAD | FWRITE)
 
 static int nfail, npass;
+static int cell_is();
 
 #define CHECK(cond, what) \
     do { if (cond) ++npass; else { ++nfail; \
@@ -455,6 +456,36 @@ t_console_enable()
 }
 
 static void
+t_csi()
+{
+    zz9k_blit_on = 0;
+    EQ(iocv(ZZ9KIOC_CONSOLE, ZZ9K_CONSOLE_ENABLE, RW, &kroot), 0, "console on");
+    cwrite("ab\033[?25lc");
+    EQ(zz9k_console_col, 3, "ESC [ ? 25 l is swallowed whole");
+    CHECK(cell_is(0, 2, 'c'), "and c drawn after it");
+    cwrite("\r\033[99999999999999C");
+    EQ(zz9k_console_col, zz9k_console_cols - 1, "a huge count clamps, no overflow");
+    cwrite("\r\033[5C");
+    EQ(zz9k_console_col, 5, "ESC [ 5 C");
+    cwrite("\007\001\177");
+    EQ(zz9k_console_col, 5, "BEL, SOH and DEL draw nothing");
+    CHECK(cell_is(0, 6, ' '), "no ? drawn for them");
+    cwrite("\033[3\033[2D");
+    EQ(zz9k_console_col, 3, "a new ESC abandons the sequence before it");
+    cwrite("\033[1\030x");
+    EQ(zz9k_console_col, 4, "CAN abandons the sequence; the next byte draws");
+    cwrite("\033[1 qy");
+    EQ(zz9k_console_col, 5, "an intermediate byte: the sequence has no effect");
+    cwrite("\033[2\rC");
+    EQ(zz9k_console_col, 2, "a control inside a sequence acts (CR, then 2 right)");
+    EQ(zz9k_console_esc, ZZ9K_ESC_NONE, "and the final byte ends it");
+    cwrite("\033[2;3H");
+    CHECK(zz9k_console_row == 1 && zz9k_console_col == 2, "ESC [ 2 ; 3 H");
+    EQ(iocv(ZZ9KIOC_CONSOLE, ZZ9K_CONSOLE_DISABLE, RW, &kroot), 0, "console off");
+    zz9k_blit_on = 1;
+}
+
+static void
 t_console_pause()
 {
     struct zz9k_conputs cp;
@@ -790,6 +821,7 @@ char **argv;
     t_console_enable();
     t_console_guard();
     t_console_pause();
+    t_csi();
     t_console_scroll();
     t_cpu_loops();
     t_fill();
