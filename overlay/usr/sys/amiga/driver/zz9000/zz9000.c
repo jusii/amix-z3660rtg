@@ -139,17 +139,19 @@ struct zz9k_board {
 };
 
 /*
- * The blitter register cache (RT-09).  Every band of a banded operation used to re-send
- * the whole register set -- 9 writes for a fill, 11 for a copy -- and each register write
- * is handled one by one by the card's firmware (~14 us apiece, MG11: ~0.14 ms per band).
- * The firmware keeps every blitter register in a global between writes (rtg.c rect_x1 ..,
+ * The blitter register cache.  Every band of a banded operation used to re-send the whole
+ * register set -- 9 writes for a fill, 11 for a copy -- and the card's firmware handles each
+ * register write one by one (~14 us apiece, ~0.14 ms per band, measured on metal).  The
+ * firmware keeps every blitter register in a global between writes (rtg.c rect_x1 ..,
  * blitter_dst_offset, blitter_colormode, rect_rgb; written only by their own register
- * handlers), so a value already on the card need not be sent again: a band then costs
- * Y1, Y2 and the trigger for a fill, Y1, Y2, Y3 and the trigger for a copy.  The cache
- * lives for one ioctl: it is emptied when a blitting ioctl starts, so nothing between two
- * ioctls -- a mode set, a SETREG poke, another process -- can leave it stale; nothing
- * inside one sleeps, and no interrupt handler writes these registers.  Emptied at attach
- * and mode set as well.
+ * handlers), so a value already on the card need not be sent again: a band then costs Y1,
+ * Y2 and the trigger for a fill, Y1, Y2, Y3 and the trigger for a copy.
+ *
+ * The cache is emptied whenever something else may have written those registers: when a
+ * blitting ioctl starts, after each copyin inside BLITS (a copyin can sleep on a page
+ * fault, and another process can run meanwhile), at SETREG, at a mode set and at attach.
+ * The console, which can run from an interrupt between two records, empties it after using
+ * the registers itself (zz9k_blit_inuse below).
  */
 #define ZZ9K_BLIT_FORGET(bp)   ((bp)->blitvalid = 0)
 
@@ -2271,6 +2273,7 @@ int *rvalp;
             *rvalp = (int)done;
             return 0;
         }
+        ZZ9K_BLIT_FORGET(bp);           /* the copyin may have slept */
         for (i = 0; i < k; i++) {
             b = &rec[i];
             if (!zz9k_rect_ok(bp, (unsigned long)b->x, (unsigned long)b->y,

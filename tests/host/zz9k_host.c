@@ -309,6 +309,17 @@ int w, h;
     EQ(ioc(ZZ9KIOC_SETMODE, 64, &m, sizeof m, RW, &kroot), 0, "SETMODE");
 }
 
+#ifdef ZZ9K_TARGET_Z3660
+static int kcopyins;
+
+static void
+other_process()
+{
+    if (++kcopyins == 3)
+        *reg32(ZZ9K_Z3660_REG_ROW_PITCH) = 0;
+}
+#endif
+
 static void
 t_blits()
 {
@@ -369,6 +380,14 @@ t_blits()
             "the second group unreadable");
         EQ(krval, 8, "returns the first group's 8");
     }
+#ifdef ZZ9K_TARGET_Z3660
+    kcopyins = 0;
+    kcopyin_hook = other_process;
+    EQ(blits(r, 9), 0, "nine records: three copyins");
+    kcopyin_hook = 0;
+    EQ(*reg32(ZZ9K_Z3660_REG_ROW_PITCH), 1920 * 2 / 4,
+        "a register changed while a copyin slept is written again");
+#endif
     zz9k_blit_on = 0;
     EQ(blits(r, 2), ENXIO, "blitter patched off");
     zz9k_blit_on = 1;

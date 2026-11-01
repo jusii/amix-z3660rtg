@@ -33,12 +33,17 @@ struct cred {
 extern char uspace[USPACE];
 extern struct cred kroot, kuser;
 
+static void (*kcopyin_hook)();     /* runs at each copyin: another process, as if it slept */
+
 static int
 copyin(u, k, n)
 char *u, *k;
 unsigned long n;
 {
     unsigned long a = (unsigned long)u;
+
+    if (kcopyin_hook)
+        (*kcopyin_hook)();
 
     if (a < 16 || a > USPACE || n > USPACE - a)
         return -1;
