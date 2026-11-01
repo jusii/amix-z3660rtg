@@ -436,6 +436,20 @@ static struct zz9k_regwin zz9k_regwin_z3660[] = {
 int zz9k_blit_on = 1;
 long zz9k_blit_maxarea = ZZ9K_BLIT_MAXAREA_DEFAULT;
 
+/*
+ * Kernel-patchable (the module's `fixed` parameter): zz9k_fixed_on 1 lets the probe try the
+ * fixed-base rows, whose board has no AutoConfig entry.  Off by default: such a probe reads
+ * a fixed address on any machine with the right chipset, and on one without the board that
+ * can bus-error or hit another card's memory.  A real Z3660 is found through its AutoConfig
+ * entry.  The bench build (-DZZ9K_BENCH_Z3660) turns it on for amiberry's Z3660 stand-in,
+ * which has no entry.
+ */
+#ifdef ZZ9K_BENCH_Z3660
+int zz9k_fixed_on = 1;
+#else
+int zz9k_fixed_on = 0;
+#endif
+
 static struct zz9k_boardtab zz9k_boardtab[] = {
     { "Zorro II board", "",
       ZZ9K_PRODUCT_PC_Z2, 0, 0,
@@ -752,6 +766,8 @@ int unit;
                 (unsigned int)bt->autocon_pc, (unsigned int)base,
                 (unsigned int)size);
         } else {
+            if (!zz9k_fixed_on)
+                continue;
             if ((bt->flags & ZZ9K_BT_AGAGATE) && !zz9k_aga())
                 continue;
             base = (long)bt->fixed_base;
@@ -2682,7 +2698,8 @@ MOD_DRV_WRAPPER(zz9000, zz9000_load, zz9000_unload, zz9000_halt,
 
 /*
  * The module's parameters replace the static kernel's patchable knobs (z3660rtg.keys):
- * blit (zz9k_blit_on) and maxarea (zz9k_blit_maxarea, pixels; 0 = the default, 8192).
+ * blit (zz9k_blit_on), fixed (zz9k_fixed_on) and maxarea (zz9k_blit_maxarea, pixels;
+ * 0 = the default, 8192).
  * Above the largest mode's area (2560x1440) a cap never splits, so that is maxarea's limit.
  */
 #define ZZ9K_MAXAREA_LIMIT  3686400L
@@ -2754,6 +2771,13 @@ char *params;
                 zz9k_blit_on = 0;
             else
                 printf("zz9000: param blit: bad value, kept %d\n", zz9k_blit_on);
+        } else if (zz9k_word(name, nlen, "fixed")) {
+            if (zz9k_word(val, vlen, "1"))
+                zz9k_fixed_on = 1;
+            else if (zz9k_word(val, vlen, "0"))
+                zz9k_fixed_on = 0;
+            else
+                printf("zz9000: param fixed: bad value, kept %d\n", zz9k_fixed_on);
         } else if (zz9k_word(name, nlen, "maxarea")) {
             v = zz9k_decimal(val, vlen);
             if (v < 0)

@@ -40,6 +40,12 @@ left unchanged.
   kit's stock `sunfont.o` and makes `builtinfont` local (`EXTRA`, `LOCALIZE`), so it carries its
   own console font and needs no kernel symbol on either line. With the flag, the module would
   ignore the font it links and use the 5x7 glyphs.
+- **Module parameters** (`module/z3660rtg.keys`): `blit` (1: use the card's blitter),
+  `maxarea` (pixels per blitter band, default 8192) and `fixed` (0: find the board only
+  through its AutoConfig entry, as a real Z3660 is found; 1 also tries the fixed base at
+  `0x10000000`, which amiberry's Z3660 stand-in needs). The static driver's
+  `zz9k_blit_on`, `zz9k_blit_maxarea` and `zz9k_fixed_on` are the same knobs; a
+  `-DZZ9K_BENCH_Z3660` build turns `zz9k_fixed_on` on.
 - **Kernel.** A Z3660 runs a 68040/68060 kernel from Antti Sokero's
   [amix-040-060-port](https://github.com/asokero/amix-040-060-port). The kernels here were
   assembled with [amix-kerntools](https://github.com/jusii/amix-kerntools), which builds this

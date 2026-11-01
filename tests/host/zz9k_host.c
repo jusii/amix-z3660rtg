@@ -614,6 +614,27 @@ t_fill()
     EQ(krval, 0, "fills 0");
 }
 
+/* last: re-probes the board */
+static void
+t_fixed()
+{
+#ifdef ZZ9K_TARGET_Z3660
+    struct zz9k_board *bp = &zz9k_boards[0];
+
+    kboards[0].pc = 0;          /* a machine whose AutoConfig list lacks the board */
+    bp->base = 0;
+    zz9k_fixed_on = 0;
+    EQ(zz9k_probe(0), 0, "no fixed-base probe by default");
+    zz9k_fixed_on = 1;
+    EQ(zz9k_probe(0), 1, "the fixed row when asked");
+    CHECK(bp->bt && bp->bt->autocon_pc == 0, "attached by the fixed row");
+    *(volatile unsigned short *)0xdff004UL = 0x0000;     /* OCS Agnus */
+    bp->base = 0;
+    EQ(zz9k_probe(0), 0, "and only on an AGA machine");
+    *(volatile unsigned short *)0xdff004UL = 0x2300;
+#endif
+}
+
 static void
 t_rect()
 {
@@ -651,6 +672,14 @@ t_params()
     zz9k_params(buf);
     EQ(zz9k_blit_maxarea, 4096, "an empty value is refused");
     zz9k_params((char *)0);
+    EQ(zz9k_fixed_on, 0, "fixed defaults to 0");
+    strcpy(buf, "fixed=1");
+    zz9k_params(buf);
+    EQ(zz9k_fixed_on, 1, "fixed=1");
+    strcpy(buf, "fixed=on");
+    zz9k_params(buf);
+    EQ(zz9k_fixed_on, 1, "a bad bool keeps fixed");
+    zz9k_fixed_on = 0;
 }
 #endif
 
@@ -684,6 +713,7 @@ char **argv;
     t_cpu_loops();
     t_fill();
     t_rect();
+    t_fixed();
     printf("%s: %d passed, %d failed\n", ZZ9K_HOST_CONFIG, npass, nfail);
     return nfail != 0;
 }
