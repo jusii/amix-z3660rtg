@@ -3,11 +3,12 @@
 - `startx-rtg` — start the server with the mode chosen first, then the user's session
   (`~/.xinitrc`, i.e. the X11R5 `olwm` etc., unchanged); see the script header. This is the
   1.0 kit's file, pinned in `KIT.sha256` (the install media check it) and left as it is.
-- `1.1/startx-rtg` — the 1.1 launcher: the same script with access control on (no `-ac`; local
-  clients connect, remote ones need `xhost`) and the server log in
-  `/var/adm/Xzz9000.<display>.log` instead of `/tmp/Xzz9000.log`, which root wrote with `>`
-  (a link planted there would be followed). `RTG_SERVER_ARGS` and `RTG_SERVERLOG` still
-  override both. It runs as root, since `/dev/zz9000` is `0660 root:sys`.
+- `1.1/startx-rtg` — the 1.1 launcher: the same script, starting the x11r63 package's
+  `/opt/amix/X11R6/bin/Xzz9000`, with access control on (no `-ac`; local clients connect,
+  remote ones need `xhost`) and the server log in `/var/adm/Xzz9000.<display>.log` instead of
+  `/tmp/Xzz9000.log`, which root wrote with `>` (a link planted there would be followed).
+  `SERVER`, `RTG_SERVER_ARGS` and `RTG_SERVERLOG` override them. It runs as root, since
+  `/dev/zz9000` is `0660 root:sys`.
 - `patches/zz9000hw-modes.patch` — the one source deviation from isoriano's tree
   (two mode entries), applied to the build tree only and proposed upstream.
 - `patches/p5-*.patch` — correctness fixes to the DDX, applied in name order after the
