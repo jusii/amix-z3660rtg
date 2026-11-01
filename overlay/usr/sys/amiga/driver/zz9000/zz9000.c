@@ -18,6 +18,7 @@
 #include "sys/inline.h"
 #include "sys/errno.h"
 #include "sys/systm.h"
+#include "sys/file.h"
 #ifdef ZZ9K_MODULE
 /* the ABI kit's stock tree (module/Makefile), not a kernel tree beside this directory */
 #include "amiga/console/screen.h"
@@ -1809,10 +1810,11 @@ struct cred *cr;
 }
 
 static int
-zz9000rw(dev, direction, uiop)
+zz9000rw(dev, direction, uiop, cr)
 dev_t dev;
 uio_rw_t direction;
 struct uio *uiop;
+struct cred *cr;
 {
     int unit, error;
     unsigned long count, end, pos, n;
@@ -1835,6 +1837,9 @@ struct uio *uiop;
         count = bp->board_size - (unsigned long)uiop->uio_offset;
     if (direction == UIO_WRITE && count == 0)
         return ENXIO;
+    /* the register block, as GETREG/SETREG, is privileged; the framebuffer is not */
+    if ((unsigned long)uiop->uio_offset < bp->bt->fb_offset && drv_priv(cr))
+        return EPERM;
 
     /* never carry one uiomove across the register/framebuffer seam */
     while (count) {
@@ -1856,7 +1861,7 @@ dev_t dev;
 struct uio *uiop;
 struct cred *cr;
 {
-    return zz9000rw(dev, UIO_READ, uiop);
+    return zz9000rw(dev, UIO_READ, uiop, cr);
 }
 
 int
@@ -1865,7 +1870,7 @@ dev_t dev;
 struct uio *uiop;
 struct cred *cr;
 {
-    return zz9000rw(dev, UIO_WRITE, uiop);
+    return zz9000rw(dev, UIO_WRITE, uiop, cr);
 }
 
 int
@@ -1969,6 +1974,57 @@ int *rvalp;
     return 0;
 }
 
+/*
+ * Who may issue what.  A command that changes the board, the screen or the console needs a
+ * descriptor open for writing (EBADF otherwise).  Raw register access, the console switch,
+ * the probe and the capture switch need privilege as well (drv_priv, EPERM): the register
+ * page also carries other drivers' registers, and the console takes the kernel's output.
+ * The rest -- GETINFO, GETFBINFO, GETAUTOCON, the monitor-switch Get -- is open to any
+ * descriptor.  A table rather than a switch, so the ioctl's own switch keeps its shape.
+ */
+#define ZZ9K_NEED_WRITE  1
+#define ZZ9K_NEED_PRIV   2
+
+static struct zz9k_ioneed {
+    int cmd;
+    int need;
+} zz9k_ioneed[] = {
+    { ZZ9KIOC_SETMODE,   ZZ9K_NEED_WRITE },
+    { ZZ9KIOC_SETPAN,    ZZ9K_NEED_WRITE },
+    { ZZ9KIOC_SETSWITCH, ZZ9K_NEED_WRITE | ZZ9K_NEED_PRIV },
+    { ZZ9KIOC_FILL,      ZZ9K_NEED_WRITE },
+    { ZZ9KIOC_GETREG,    ZZ9K_NEED_PRIV },
+    { ZZ9KIOC_SETREG,    ZZ9K_NEED_WRITE | ZZ9K_NEED_PRIV },
+    { ZZ9KIOC_PROBE,     ZZ9K_NEED_PRIV },
+    { ZZ9KIOC_CONSOLE,   ZZ9K_NEED_WRITE | ZZ9K_NEED_PRIV },
+    { ZZ9KIOC_FILLRECT,  ZZ9K_NEED_WRITE },
+    { ZZ9KIOC_COPYRECT,  ZZ9K_NEED_WRITE },
+    { ZZ9KIOC_CONPUTS,   ZZ9K_NEED_WRITE },
+    { ZZ9KIOC_BLITS,     ZZ9K_NEED_WRITE },
+    { SVGAIOCSetMonitorSwitch, ZZ9K_NEED_WRITE },
+    { 0, 0 }
+};
+
+static int
+zz9k_ioc_allowed(cmd, mode, cr)
+int cmd;
+int mode;
+struct cred *cr;
+{
+    struct zz9k_ioneed *t;
+
+    for (t = zz9k_ioneed; t->cmd; ++t) {
+        if (t->cmd != cmd)
+            continue;
+        if ((t->need & ZZ9K_NEED_WRITE) && !(mode & FWRITE))
+            return EBADF;
+        if ((t->need & ZZ9K_NEED_PRIV) && drv_priv(cr))
+            return EPERM;
+        return 0;
+    }
+    return 0;
+}
+
 int
 zz9000ioctl(dev, cmd, arg, mode, cr, rvalp)
 dev_t dev;
@@ -2004,6 +2060,9 @@ int *rvalp;
     if (unit >= ZZ9K_MAXBOARDS)
         return ENXIO;
     bp = &zz9k_boards[unit];
+    error = zz9k_ioc_allowed(cmd, mode, cr);
+    if (error)
+        return error;
 
     /*
      * The RTG contract's monitor switch (SVGAIOC, 0xe3xx), handled outside the switch on
