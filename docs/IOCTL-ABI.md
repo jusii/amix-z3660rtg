@@ -135,3 +135,37 @@ The X server maps `GETINFO.board_size`, the whole 46 MB window on the Z3660, whi
 `startx-rtg` raises `ulimit -v`. `GETFBINFO` already gives `fb_offset`, `stride` and
 `height`, so the server can map `fb_offset + stride * height` rounded up to a page, and the
 memory limit hack can go. No new field is needed.
+
+## SENSORS and the information node (new)
+
+`ZZ9KIOC_SENSORS` (`ZZ9K_IOC | 21`, `struct zz9k_sensors`, 72 bytes) reads what the Z3660
+firmware measures. These are the values the AmigaOS ZTop shows. The call is read-only and
+writes nothing to the board. The caller sets `size` to `sizeof (struct zz9k_sensors)`; a
+smaller value gives `EINVAL`. The driver then fills in:
+
+- `count`: `ZZ9K_SENS_N` (9), or 0 when the board offers no sensors (a ZZ9000, or Z3660
+  firmware without them);
+- `valid`: bit *i* is set when `value[i]` was read;
+- `value[]`, indexed by the `ZZ9K_SENS_*` ids:
+
+| id | value | unit | register (rtg.c) |
+|---|---|---|---|
+| 0 `FPGA_TEMP` | the Zynq die | 0.01 °C | `0x1D4` (°C × 10) |
+| 1 `BOARD_TEMP` | the LTC2990 monitor | 0.01 °C | `0x220` |
+| 2 `CPU_TEMP` | the 68060, from its thermistor | 0.01 °C | `0x22C` |
+| 3 `VCORE` | the Zynq core supply | mV | `0x1DC` (V × 100) |
+| 4 `VAUX` | the Zynq auxiliary supply | mV | `0x1D8` |
+| 5 `V3V3` | the 3.3 V rail | mV | `0x224` |
+| 6 `V5` | the 5 V rail | mV | `0x228` |
+| 7 `VCC` | the LTC2990's supply | mV | `0x230` |
+| 8 `CPU_MHZ` | the CPU clock the preset sets (not measured) | MHz | `0x1F8` |
+
+A register the firmware does not have reads as all ones, and that value is not valid. The
+firmware saturates every measurement at 200 units. A driver without this call answers
+`EINVAL`.
+
+**The information node.** Minor `ZZ9K_MINOR_INFO` (128) plus the unit is `/dev/zz9000i`,
+`c 49 128`, mode `0444 root:sys`. It answers `GETINFO`, `GETFBINFO`, `GETMODES`, `SENSORS` and
+the monitor-switch Get. Anything else gives `EPERM`, even for root, and it has no `read`,
+`write` or `mmap`. Its close leaves the monitor switch and the console alone. Ordinary users
+can therefore run `ztop` and `xztop` while `/dev/zz9000` stays `0660`.

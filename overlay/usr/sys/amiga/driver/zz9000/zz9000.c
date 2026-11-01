@@ -51,6 +51,8 @@
 #endif
 
 #define ZZ9K_MAXBOARDS 1
+#define ZZ9K_UNIT(dev)    (getminor(dev) & ~ZZ9K_MINOR_INFO)
+#define ZZ9K_ISINFO(dev)  (getminor(dev) & ZZ9K_MINOR_INFO)
 
 #define ZZ9K_REG(base, off) \
     (*((volatile unsigned short *)((char *)(base) + (off))))
@@ -415,6 +417,19 @@ static struct zz9k_regwin zz9k_regwin_z3660[] = {
     { ZZ9K_Z3660_REG_MONITOR_SWITCH, ZZ9K_Z3660_REG_MONITOR_SWITCH + 4, 0 },
     { 0, 0, 0 }
 };
+
+/* The Z3660's measurements for ZZ9KIOC_SENSORS, in the order of the ZZ9K_SENS_* ids. */
+static struct zz9k_sensreg zz9k_sens_z3660[ZZ9K_SENS_N] = {
+    { ZZ9K_Z3660_REG_TEMPERATURE, 10, 2000 },   /* C x 10 -> x 100 */
+    { ZZ9K_Z3660_REG_LTC_TEMP, 1, 20000 },
+    { ZZ9K_Z3660_REG_LTC_060_TEMP, 1, 20000 },
+    { ZZ9K_Z3660_REG_VOLTAGE_INT, 10, 20000 },  /* V x 100 -> mV */
+    { ZZ9K_Z3660_REG_VOLTAGE_AUX, 10, 20000 },
+    { ZZ9K_Z3660_REG_LTC_V1, 10, 20000 },
+    { ZZ9K_Z3660_REG_LTC_V2, 10, 20000 },
+    { ZZ9K_Z3660_REG_LTC_VCC, 10, 20000 },
+    { ZZ9K_Z3660_REG_CPU_FREQ, 1, 1000 }
+};
 #endif /* ZZ9K_TARGET_Z3660 */
 
 /*
@@ -470,7 +485,7 @@ static struct zz9k_boardtab zz9k_boardtab[] = {
       2, zz9k_regoff_zz9000, zz9k_modes_zz9000,
       ZZ9K_CON_WIDTH, ZZ9K_CON_HEIGHT,
       ZZ9K_FW_VER_MIN, 0, 2, ZZ9K_PRODUCT_Z2, ZZ9K_BT_BLIT_ZZ9000,
-      zz9k_regwin_zz9000 },
+      zz9k_regwin_zz9000, 0 },
 #ifndef ZZ9K_BENCH_Z3
     { "Zorro III product", "configure card as Zorro II product 3 for AMIX",
       ZZ9K_PRODUCT_PC_Z3, 0, 0,
@@ -478,7 +493,7 @@ static struct zz9k_boardtab zz9k_boardtab[] = {
       2, zz9k_regoff_zz9000, zz9k_modes_zz9000,
       ZZ9K_CON_WIDTH, ZZ9K_CON_HEIGHT,
       ZZ9K_FW_VER_MIN, 0, 3, ZZ9K_PRODUCT_Z3, ZZ9K_BT_REJECT,
-      zz9k_regwin_zz9000 }
+      zz9k_regwin_zz9000, 0 }
 #else
     /*
      * Bench aid, not a supported configuration: amiberry can place its
@@ -495,7 +510,7 @@ static struct zz9k_boardtab zz9k_boardtab[] = {
       2, zz9k_regoff_zz9000, zz9k_modes_zz9000,
       ZZ9K_CON_WIDTH, ZZ9K_CON_HEIGHT,
       ZZ9K_FW_VER_MIN, 0, 3, ZZ9K_PRODUCT_Z3, ZZ9K_BT_BLIT_ZZ9000,
-      zz9k_regwin_zz9000 }
+      zz9k_regwin_zz9000, 0 }
 #endif /* ZZ9K_BENCH_Z3 */
 #ifdef ZZ9K_TARGET_Z3660
     /*
@@ -517,7 +532,8 @@ static struct zz9k_boardtab zz9k_boardtab[] = {
       4, zz9k_regoff_z3660, zz9k_modes_z3660,
       ZZ9K_Z3660_CON_W, ZZ9K_Z3660_CON_H,
       ZZ9K_Z3660_FW_MIN, ZZ9K_Z3660_FW_MAJOR, 3, 1,
-      ZZ9K_BT_NOCAPTURE | ZZ9K_BT_BLIT_Z3660, zz9k_regwin_z3660 }
+      ZZ9K_BT_NOCAPTURE | ZZ9K_BT_BLIT_Z3660, zz9k_regwin_z3660,
+      zz9k_sens_z3660 }
     /*
      * The same board reached by its fixed base, for a machine whose
      * AutoConfig table does not list it.  Device space is the framebuffer
@@ -533,7 +549,7 @@ static struct zz9k_boardtab zz9k_boardtab[] = {
       ZZ9K_Z3660_CON_W, ZZ9K_Z3660_CON_H,
       ZZ9K_Z3660_FW_MIN, ZZ9K_Z3660_FW_MAJOR, 3, 1,
       ZZ9K_BT_AGAGATE | ZZ9K_BT_NOCAPTURE | ZZ9K_BT_BLIT_Z3660,
-      zz9k_regwin_z3660 }
+      zz9k_regwin_z3660, zz9k_sens_z3660 }
 #endif /* ZZ9K_TARGET_Z3660 */
 };
 
@@ -2152,7 +2168,7 @@ struct cred *cr;
 {
     int unit;
 
-    unit = getminor(*devp);
+    unit = ZZ9K_UNIT(*devp);
     if (unit >= ZZ9K_MAXBOARDS)
         return ENXIO;
     return 0;
@@ -2167,7 +2183,9 @@ struct cred *cr;
 {
     int unit;
 
-    unit = getminor(dev);
+    unit = ZZ9K_UNIT(dev);
+    if (ZZ9K_ISINFO(dev))               /* the information node holds nothing */
+        return 0;
     /*
      * SVR4 calls close on the last close only, and the kernel closes a dying process's
      * descriptors, so a crashed or killed X server lands here too: back to native,
@@ -2200,7 +2218,9 @@ struct cred *cr;
     unsigned long count, end, pos, n;
     struct zz9k_board *bp;
 
-    unit = getminor(dev);
+    if (ZZ9K_ISINFO(dev))
+        return ENODEV;
+    unit = ZZ9K_UNIT(dev);
     if (!zz9k_probe(unit))
         return ENXIO;
     bp = &zz9k_boards[unit];
@@ -2262,7 +2282,9 @@ int maxprot;
     int unit;
     struct zz9k_board *bp;
 
-    unit = getminor(dev);
+    if (ZZ9K_ISINFO(dev))
+        return -1;
+    unit = ZZ9K_UNIT(dev);
     if (!zz9k_probe(unit))
         return -1;
     bp = &zz9k_boards[unit];
@@ -2395,6 +2417,44 @@ int arg;
 }
 
 /*
+ * ZZ9KIOC_SENSORS (zz9000.h): reads only.  The firmware answers each register itself, in
+ * a few microseconds; a register it does not have reads as all ones.
+ */
+static int
+zz9k_sensors(bp, arg)
+struct zz9k_board *bp;
+int arg;
+{
+    struct zz9k_sensors ss;
+    struct zz9k_sensreg *t;
+    unsigned long raw;
+    int i;
+
+    if (copyin((caddr_t)arg, (caddr_t)&ss.size, sizeof ss.size))
+        return EFAULT;
+    if (ss.size < sizeof ss)
+        return EINVAL;
+    bzero((caddr_t)&ss, sizeof ss);
+    ss.size = sizeof ss;
+    if (bp->bt->sens && bp->bt->regw == 4) {
+        for (i = 0, t = bp->bt->sens; i < ZZ9K_SENS_N; ++i, ++t) {
+            if (t->off == ZZ9K_NOREG)
+                continue;
+            raw = *((volatile unsigned long *)((char *)bp->base + t->off));
+            if (raw > t->max || (i == ZZ9K_SENS_CPU_MHZ && raw == 0))
+                continue;
+            ss.value[i] = (long)(raw * t->mul);
+            ss.valid |= (unsigned long)1 << i;
+        }
+        if (ss.valid)
+            ss.count = ZZ9K_SENS_N;
+    }
+    if (copyout((caddr_t)&ss, (caddr_t)arg, sizeof ss))
+        return EFAULT;
+    return 0;
+}
+
+/*
  * A GETREG (set 0) or SETREG (set 1) of the 16-bit lane at off: inside the page, even, and
  * in one of the row's windows (zz9000.h, struct zz9k_regwin).
  */
@@ -2498,10 +2558,13 @@ int *rvalp;
         } c;
     } u;
 
-    unit = getminor(dev);
+    unit = ZZ9K_UNIT(dev);
     if (unit >= ZZ9K_MAXBOARDS)
         return ENXIO;
     bp = &zz9k_boards[unit];
+    if (ZZ9K_ISINFO(dev) && cmd != ZZ9KIOC_GETINFO && cmd != ZZ9KIOC_GETFBINFO &&
+        cmd != ZZ9KIOC_GETMODES && cmd != ZZ9KIOC_SENSORS && cmd != SVGAIOCGetMonitorSwitch)
+        return EPERM;
     error = zz9k_ioc_allowed(cmd, mode, cr);
     if (error)
         return error;
@@ -2546,6 +2609,8 @@ int *rvalp;
         return ENXIO;
     if (cmd == ZZ9KIOC_GETMODES)        /* outside the switch, as BLITS */
         return zz9k_getmodes(bp, arg);
+    if (cmd == ZZ9KIOC_SENSORS)
+        return zz9k_sensors(bp, arg);
 
     switch (cmd) {
     case ZZ9KIOC_GETINFO:

@@ -812,6 +812,73 @@ t_getmodes()
     EQ(sizeof ms, 260, "260 bytes");
 }
 
+static int
+iocdev(dev, cmd, p, n, mode, cr)
+int dev, cmd;
+void *p;
+int n, mode;
+struct cred *cr;
+{
+    int e;
+
+    memcpy(uspace + 64, p, n);
+    e = zz9000ioctl(dev, cmd, 64, mode, cr, &krval);
+    memcpy(p, uspace + 64, n);
+    return e;
+}
+
+static void
+t_sensors()
+{
+    struct zz9k_sensors ss;
+    struct zz9k_mode m;
+    struct uio u;
+    char buf[16];
+    int lc;
+    static long want[ZZ9K_SENS_N] = { 4120, 3510, 4567, 1000, 1800, 3310, 5020, 4990, 50 };
+    int i, bad;
+
+    memset(&ss, 0, sizeof ss);
+    ss.size = sizeof ss - 1;
+    EQ(iocdev(0, ZZ9KIOC_SENSORS, &ss, sizeof ss, FREAD, &kuser), EINVAL, "size too small");
+    EQ(sizeof ss, 72, "72 bytes");
+    ss.size = sizeof ss;
+#ifdef ZZ9K_TARGET_Z3660
+    *reg32(0x1d4) = 412; *reg32(0x220) = 3510; *reg32(0x22c) = 4567;
+    *reg32(0x1dc) = 100; *reg32(0x1d8) = 180; *reg32(0x224) = 331;
+    *reg32(0x228) = 502; *reg32(0x230) = 499; *reg32(0x1f8) = 50;
+    ss.size = sizeof ss;
+    EQ(iocdev(0, ZZ9KIOC_SENSORS, &ss, sizeof ss, FREAD, &kuser), 0, "SENSORS, read-only, unprivileged");
+    EQ(ss.count, ZZ9K_SENS_N, "all sensors");
+    EQ(ss.valid, 0x1ff, "all valid");
+    for (i = 0, bad = 0; i < ZZ9K_SENS_N; ++i)
+        bad += ss.value[i] != want[i];
+    EQ(bad, 0, "values in 0.01 C, mV and MHz");
+    *reg32(0x22c) = 0xffffffff;          /* firmware without the 060 thermistor read */
+    *reg32(0x1f8) = 0;
+    EQ(iocdev(0, ZZ9KIOC_SENSORS, &ss, sizeof ss, FREAD, &kuser), 0, "SENSORS again");
+    EQ(ss.valid, 0x1ff & ~(1 << ZZ9K_SENS_CPU_TEMP) & ~(1 << ZZ9K_SENS_CPU_MHZ),
+        "an all-ones register and a 0 MHz clock are not valid");
+    for (i = 0x1d4; i <= 0x230; i += 4)
+        *reg32(i) = 0xffffffff;
+#endif
+    EQ(iocdev(0, ZZ9KIOC_SENSORS, &ss, sizeof ss, FREAD, &kuser), 0, "SENSORS without sensors");
+    CHECK(ss.count == 0 && ss.valid == 0, "no sensors, cleanly");
+    /* the information node */
+    EQ(iocdev(ZZ9K_MINOR_INFO, ZZ9KIOC_SENSORS, &ss, sizeof ss, FREAD, &kuser), 0,
+        "SENSORS on the information node");
+    m.width = 1280; m.height = 720; m.color_mode = ZZ9K_COLOR_16BIT565; m.scale_mode = 0;
+    EQ(iocdev(ZZ9K_MINOR_INFO, ZZ9KIOC_SETMODE, &m, sizeof m, RW, &kroot), EPERM,
+        "no SETMODE on the information node, even for root");
+    EQ(zz9000ioctl(ZZ9K_MINOR_INFO, ZZ9KIOC_PROBE, 0, RW, &kroot, &krval), EPERM, "nor PROBE");
+    u.uio_offset = 0; u.uio_resid = 4; u.uio_ubase = buf;
+    EQ(zz9000read(ZZ9K_MINOR_INFO, &u, &kroot), ENODEV, "no read");
+    EQ(zz9000mmap(ZZ9K_MINOR_INFO, 0, 0), -1, "no mmap");
+    lc = kmonsw_lastcloses;
+    EQ(zz9000close(ZZ9K_MINOR_INFO, FREAD, 0, &kuser), 0, "close");
+    EQ(kmonsw_lastcloses, lc, "its close does not touch the monitor switch");
+}
+
 static void
 t_layout()
 {
@@ -911,6 +978,7 @@ char **argv;
     t_rect();
     t_layout();
     t_getmodes();
+    t_sensors();
     t_fixed();
     printf("%s: %d passed, %d failed\n", ZZ9K_HOST_CONFIG, npass, nfail);
     return nfail != 0;

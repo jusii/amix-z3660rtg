@@ -110,6 +110,16 @@
 #define ZZ9KIOC_BLITS          (ZZ9K_IOC | 16)  /* a batch of card-blitter fills/copies */
 /* 17 and 18 are taken by other builds of this driver (soft3D, BLITX); not answered here */
 #define ZZ9KIOC_GETMODES       (ZZ9K_IOC | 20)  /* the attached board's mode table */
+#define ZZ9KIOC_SENSORS        (ZZ9K_IOC | 21)  /* temperatures, voltages, CPU clock */
+
+/*
+ * The information node: minor ZZ9K_MINOR_INFO + unit (/dev/zz9000i, 49,128,
+ * mode 0444) answers GETINFO, GETFBINFO, GETMODES, SENSORS and the
+ * monitor-switch Get, and nothing else (EPERM): no read, write or mmap.  So
+ * an ordinary user can watch the board's sensors while /dev/zz9000 stays
+ * 0660 root:sys.
+ */
+#define ZZ9K_MINOR_INFO        0x80
 /*
  * ZZ9KIOC_GETMONSW was answered by an interim driver (2026-09) that drove the monitor-switch
  * line itself; it is kept here for zz9k_monsw, which still meets such kernels.  The line now
@@ -214,6 +224,33 @@ struct zz9k_modes {
     unsigned short count;
     unsigned short pad;
     struct zz9k_modeent mode[ZZ9K_MODES_MAX];
+};
+
+/*
+ * ZZ9KIOC_SENSORS, read-only: what the board's firmware measures, as the
+ * AmigaOS ZTop shows it.  The caller sets size to sizeof (struct zz9k_sensors)
+ * (EINVAL if smaller); the driver fills count -- ZZ9K_SENS_N, or 0 when the
+ * board offers no sensors (a ZZ9000; Z3660 firmware without them) -- valid,
+ * bit i set when value[i] was read, and value[].  Nothing is written to the
+ * board.  Units: temperatures in 0.01 C, voltages in mV, the clock in MHz.
+ */
+#define ZZ9K_SENS_FPGA_TEMP    0       /* the Zynq die (XADC) */
+#define ZZ9K_SENS_BOARD_TEMP   1       /* the LTC2990 monitor's own */
+#define ZZ9K_SENS_CPU_TEMP     2       /* the 68060, from its thermistor */
+#define ZZ9K_SENS_VCORE        3       /* the Zynq core supply */
+#define ZZ9K_SENS_VAUX         4       /* the Zynq auxiliary supply */
+#define ZZ9K_SENS_V3V3         5       /* the 3.3 V rail */
+#define ZZ9K_SENS_V5           6       /* the 5 V rail */
+#define ZZ9K_SENS_VCC          7       /* the LTC2990's supply */
+#define ZZ9K_SENS_CPU_MHZ      8       /* the CPU clock the preset sets */
+#define ZZ9K_SENS_N            9
+#define ZZ9K_SENS_MAX          16
+
+struct zz9k_sensors {
+    unsigned short size;
+    unsigned short count;
+    unsigned long valid;
+    long value[ZZ9K_SENS_MAX];
 };
 
 struct zz9k_pan {
@@ -353,6 +390,16 @@ struct zz9k_conputs {
 #define ZZ9K_Z3660_REG_SPLIT_POS   0x188
 #define ZZ9K_Z3660_REG_FW_VERSION  0x1a0
 #define ZZ9K_Z3660_REG_MONITOR_SWITCH 0x318  /* firmware `monitor_switch`, read-only here */
+/* the firmware's measurements (rtg.c measures_thread); reading them has no side effect */
+#define ZZ9K_Z3660_REG_TEMPERATURE 0x1d4   /* XADC die temperature x 10 */
+#define ZZ9K_Z3660_REG_VOLTAGE_AUX 0x1d8   /* V x 100 */
+#define ZZ9K_Z3660_REG_VOLTAGE_INT 0x1dc   /* V x 100 */
+#define ZZ9K_Z3660_REG_CPU_FREQ    0x1f8   /* MHz, the preset's */
+#define ZZ9K_Z3660_REG_LTC_TEMP    0x220   /* C x 100 */
+#define ZZ9K_Z3660_REG_LTC_V1      0x224   /* 3.3 V rail, V x 100 */
+#define ZZ9K_Z3660_REG_LTC_V2      0x228   /* 5 V rail, V x 100 */
+#define ZZ9K_Z3660_REG_LTC_060_TEMP 0x22c  /* C x 100 */
+#define ZZ9K_Z3660_REG_LTC_VCC     0x230   /* V x 100 */
 #define ZZ9K_Z3660_REG_FW_BETA     0x280
 #define ZZ9K_Z3660_REG_FW_ALFA     0x284
 
@@ -430,6 +477,18 @@ struct zz9k_regwin {
     unsigned short set;
 };
 
+/*
+ * ZZ9KIOC_SENSORS: per sensor id, the register, the factor to the ABI's unit
+ * and the largest raw value the firmware gives (it saturates at 200 units).
+ * A read of all ones (a register the firmware does not have), or above max,
+ * is not valid.  off ZZ9K_NOREG: no such sensor.
+ */
+struct zz9k_sensreg {
+    unsigned short off;
+    unsigned short mul;
+    unsigned short max;
+};
+
 struct zz9k_boardtab {
     char *name;                   /* as printed by the driver */
     char *advice;                 /* printed after a ZZ9K_BT_REJECT match */
@@ -452,6 +511,7 @@ struct zz9k_boardtab {
     unsigned short product;       /* GETINFO.product */
     unsigned short flags;         /* ZZ9K_BT_* */
     struct zz9k_regwin *regwin;   /* what GETREG/SETREG may reach */
+    struct zz9k_sensreg *sens;    /* [ZZ9K_SENS_N] for ZZ9KIOC_SENSORS; 0 = none */
 };
 
 #endif /* ZZ9000_H */
